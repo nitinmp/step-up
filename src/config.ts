@@ -8,8 +8,8 @@ export const appConfig = {
   authSecret: "nv2EtQsB8Aw_-xHQBxVLvBFPnGZJmxV3H709_Y9cKz4",
   admin: {
     name: "Challenge Admin",
-    mobile: "9999999999",
-    password: "changeme123",
+    mobile: "9392909888",
+    password: "shriganesh007",
   },
   timezone: "Asia/Kolkata",
   // Vercel Blob → Store → read-write token
