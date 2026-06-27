@@ -34,7 +34,7 @@ export async function GET(request: Request) {
 
     return new Response(result.stream, {
       headers: {
-        "Content-Type": result.blob.contentType,
+        "Content-Type": result.blob.contentType ?? "application/octet-stream",
         "Cache-Control": "private, max-age=3600",
       },
     });
