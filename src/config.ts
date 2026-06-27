@@ -13,5 +13,5 @@ export const appConfig = {
   },
   timezone: "Asia/Kolkata",
   // Vercel Blob → Store → read-write token
-  blobReadWriteToken: "",
+  blobReadWriteToken: "vercel_blob_rw_hPNSbgSL2cjMbGcn_p30IE7XD1Qg5fFGnBfYiGITJL3fTFA",
 } as const;
