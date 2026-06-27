@@ -54,6 +54,39 @@ export type DashboardDay = ChallengeDayRow & {
   canLog: boolean;
 };
 
+export type WeekStat = {
+  weekNo: number;
+  daysWalked: number;
+  totalSteps: number;
+};
+
+function buildWeekStats(
+  loggedActivities: Array<
+    DashboardDay & { activity: NonNullable<DashboardDay["activity"]> }
+  >,
+): WeekStat[] {
+  const totals = new Map<number, { daysWalked: number; totalSteps: number }>();
+
+  for (const weekNo of [1, 2, 3, 4]) {
+    totals.set(weekNo, { daysWalked: 0, totalSteps: 0 });
+  }
+
+  for (const day of loggedActivities) {
+    if (day.activity.status === "disapproved") {
+      continue;
+    }
+
+    const entry = totals.get(day.weekNo)!;
+    entry.daysWalked += 1;
+    entry.totalSteps += day.activity.steps;
+  }
+
+  return [1, 2, 3, 4].map((weekNo) => ({
+    weekNo,
+    ...totals.get(weekNo)!,
+  }));
+}
+
 export class ActivityError extends Error {
   status: number;
 
@@ -217,11 +250,21 @@ export async function getActivitiesDashboard(userId: string) {
       };
     });
 
+  const loggedActivities = dayRows
+    .filter((day): day is DashboardDay & { activity: NonNullable<DashboardDay["activity"]> } =>
+      Boolean(day.activity),
+    )
+    .sort((a, b) => compareDateStrings(b.date, a.date));
+
+  const weekStats = buildWeekStats(loggedActivities);
+
   return {
     today,
     standing,
     participantCount: standings.length,
     dayRows,
+    loggedActivities,
+    weekStats,
   };
 }
 

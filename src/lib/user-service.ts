@@ -187,14 +187,8 @@ export async function deleteUserAndData(
     .from(activities)
     .where(eq(activities.userId, userId));
 
-  await db.transaction(async (tx) => {
-    await tx
-      .update(activities)
-      .set({ editedBy: null })
-      .where(eq(activities.editedBy, userId));
-    await tx.delete(activities).where(eq(activities.userId, userId));
-    await tx.delete(users).where(eq(users.id, userId));
-  });
+  // neon-http has no transactions; FK cascade/set-null on the schema handles cleanup.
+  await db.delete(users).where(eq(users.id, userId));
 
   await deleteBlobUrl(user.profileImageUrl);
   for (const activity of userActivities) {

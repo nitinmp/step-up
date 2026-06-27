@@ -1,42 +1,26 @@
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 :root {
-  --brand: #0f6e56;
-  --brand-dark: #0a5443;
-  --gold: #f2b705;
-  --background: #fbf9f3;
-  --surface: #ffffff;
-  --foreground: #16302a;
-  --muted: #55615c;
-  --success: #0f6e56;
-  --warning: #f2b705;
-  --danger: #d7402f;
-  --medal-gold: #ffd966;
-  --medal-silver: #d9d9d9;
-  --medal-bronze: #e0b084;
-}
-
-@theme inline {
-  --color-brand: var(--brand);
-  --color-brand-dark: var(--brand-dark);
-  --color-gold: var(--gold);
-  --color-background: var(--background);
-  --color-surface: var(--surface);
-  --color-foreground: var(--foreground);
-  --color-muted: var(--muted);
-  --color-success: var(--success);
-  --color-warning: var(--warning);
-  --color-danger: var(--danger);
-  --color-medal-gold: var(--medal-gold);
-  --color-medal-silver: var(--medal-silver);
-  --color-medal-bronze: var(--medal-bronze);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --brand: 15 110 86;
+  --brand-dark: 10 84 67;
+  --gold: 242 183 5;
+  --background: 251 249 243;
+  --surface: 255 255 255;
+  --foreground: 22 48 42;
+  --muted: 85 97 92;
+  --success: 15 110 86;
+  --warning: 242 183 5;
+  --danger: 215 64 47;
+  --medal-gold: 255 217 102;
+  --medal-silver: 217 217 217;
+  --medal-bronze: 224 176 132;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: rgb(var(--background));
+  color: rgb(var(--foreground));
   font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
 
@@ -44,7 +28,7 @@ body {
   width: 100%;
   border-radius: 1rem;
   border: 1px solid rgb(0 0 0 / 0.1);
-  background: var(--background);
+  background: rgb(var(--background));
   padding: 0.75rem 1rem;
   font-size: 1rem;
   line-height: 1.5rem;
@@ -53,7 +37,7 @@ body {
 }
 
 .field-input:focus-visible {
-  box-shadow: 0 0 0 2px var(--brand);
+  box-shadow: 0 0 0 2px rgb(var(--brand));
 }
 
 button:focus-visible,
@@ -62,5 +46,5 @@ select:focus-visible,
 input:focus-visible,
 textarea:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px var(--brand);
+  box-shadow: 0 0 0 2px rgb(var(--brand));
 }

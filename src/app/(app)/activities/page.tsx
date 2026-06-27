@@ -2,8 +2,8 @@ import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
 import {
-  ActivityDayList,
   ActivitiesSummary,
+  ActivityLogList,
 } from "@/components/activities/activities-dashboard";
 import { getActivitiesDashboard } from "@/lib/activities-service";
 
@@ -23,8 +23,9 @@ export default async function ActivitiesPage() {
         currentWeek={currentWeek}
         participantCount={dashboard.participantCount}
         standing={dashboard.standing}
+        weekStats={dashboard.weekStats}
       />
-      <ActivityDayList days={dashboard.dayRows} />
+      <ActivityLogList activities={dashboard.loggedActivities} />
     </div>
   );
 }

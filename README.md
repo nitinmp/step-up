@@ -26,7 +26,17 @@ pnpm db:seed-admin   # create/update admin user from config
 pnpm dev
 ```
 
+If native module errors appear (`@next/swc`), reset dependencies:
+
+```bash
+rm -rf node_modules .next
+pnpm install
+pnpm dev
+```
+
 Open [http://localhost:3000](http://localhost:3000).
+
+`pnpm dev` uses Webpack. After a clean install you can try `pnpm dev:turbo`.
 
 ### Database scripts
 
