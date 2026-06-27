@@ -48,7 +48,7 @@ The app reads config from `src/config.ts` at build/runtime, so no Vercel env set
 
 1. ✅ Scaffold + Drizzle schema + seed
 2. ✅ Auth (register/login/session)
-3. `computeStandings()` scoring engine
+3. ✅ `computeStandings()` scoring engine
 4. Log activity + activities dashboard
 5. Leaderboard
 6. Admin moderation

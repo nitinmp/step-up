@@ -13,7 +13,9 @@
     "db:seed": "tsx scripts/seed.ts",
     "db:seed-admin": "tsx scripts/seed-admin.ts",
     "db:setup": "pnpm db:push && pnpm db:seed",
-    "test:scoring": "tsx --test scripts/scoring.test.ts"
+    "test:scoring": "tsx --test scripts/scoring.test.ts",
+    "test:standings": "tsx --test scripts/standings.test.ts",
+    "test": "pnpm test:scoring && pnpm test:standings"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
