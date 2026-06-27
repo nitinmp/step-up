@@ -146,6 +146,40 @@ export function AdminPanel({
     }
   }
 
+  async function deleteParticipant(user: AdminUserRow) {
+    const confirmed = window.confirm(
+      `Delete ${user.name}? This removes all their activities, photos, and profile data permanently.`,
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    setBusyId(user.id);
+    setError(null);
+    setMessage(null);
+
+    const response = await fetch(`/api/admin/users/${user.id}`, {
+      method: "DELETE",
+    });
+
+    const payload = (await response.json()) as {
+      error?: string;
+      deletedUserName?: string;
+    };
+
+    setBusyId(null);
+
+    if (!response.ok) {
+      setError(payload.error ?? "Could not delete participant.");
+      return;
+    }
+
+    setParticipantRows((rows) => rows.filter((row) => row.id !== user.id));
+    setActivities((rows) => rows.filter((row) => row.userId !== user.id));
+    setMessage(`${payload.deletedUserName ?? user.name} was deleted.`);
+    router.refresh();
+  }
+
   async function runScoring(body: Record<string, unknown>, successMessage: string) {
     setScoringBusy(true);
     setError(null);
@@ -240,6 +274,7 @@ export function AdminPanel({
         <ParticipantsTab
           busyId={busyId}
           currentAdminId={currentAdminId}
+          onDelete={deleteParticipant}
           onToggleRole={toggleRole}
           users={participantRows}
         />
@@ -526,11 +561,13 @@ function ParticipantsTab({
   users,
   currentAdminId,
   onToggleRole,
+  onDelete,
   busyId,
 }: {
   users: AdminUserRow[];
   currentAdminId: string;
   onToggleRole: (user: AdminUserRow) => void;
+  onDelete: (user: AdminUserRow) => void;
   busyId: string | null;
 }) {
   if (users.length === 0) {
@@ -555,13 +592,24 @@ function ParticipantsTab({
               {user.mobile} · {user.role === "admin" ? "Admin" : "Participant"}
             </p>
           </div>
-          <ActionButton
-            disabled={busyId === user.id}
-            onClick={() => onToggleRole(user)}
-            variant={user.role === "admin" ? "ghost" : "primary"}
-          >
-            {user.role === "admin" ? "Make participant" : "Make admin"}
-          </ActionButton>
+          <div className="flex flex-wrap gap-2">
+            <ActionButton
+              disabled={busyId === user.id}
+              onClick={() => onToggleRole(user)}
+              variant={user.role === "admin" ? "ghost" : "primary"}
+            >
+              {user.role === "admin" ? "Make participant" : "Make admin"}
+            </ActionButton>
+            {user.id !== currentAdminId ? (
+              <ActionButton
+                disabled={busyId === user.id}
+                onClick={() => onDelete(user)}
+                variant="danger"
+              >
+                Delete
+              </ActionButton>
+            ) : null}
+          </div>
         </article>
       ))}
     </section>

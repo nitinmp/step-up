@@ -17,6 +17,7 @@ export const users = pgTable("users", {
   mobile: varchar("mobile", { length: 15 }).notNull().unique(),
   passwordHash: text("password_hash").notNull(),
   role: text("role").notNull().default("user"),
+  profileImageUrl: text("profile_image_url"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -52,7 +53,7 @@ export const activities = pgTable(
     id: uuid("id").defaultRandom().primaryKey(),
     userId: uuid("user_id")
       .notNull()
-      .references(() => users.id),
+      .references(() => users.id, { onDelete: "cascade" }),
     activityDate: date("activity_date")
       .notNull()
       .references(() => challengeDay.date),
@@ -61,7 +62,9 @@ export const activities = pgTable(
     status: text("status").notNull().default("approved"),
     basePoints: integer("base_points").notNull().default(0),
     adminNote: text("admin_note"),
-    editedBy: uuid("edited_by").references(() => users.id),
+    editedBy: uuid("edited_by").references(() => users.id, {
+      onDelete: "set null",
+    }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

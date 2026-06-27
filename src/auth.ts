@@ -17,6 +17,7 @@ declare module "next-auth" {
       emailVerified: Date | null;
       mobile: string;
       role: string;
+      profileImageUrl: string | null;
     };
   }
 
@@ -27,6 +28,7 @@ declare module "next-auth" {
     emailVerified: Date | null;
     mobile: string;
     role: string;
+    profileImageUrl: string | null;
   }
 }
 
@@ -54,7 +56,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         const db = getDb();
         const [user] = await db
-          .select()
+          .select({
+            id: users.id,
+            name: users.name,
+            mobile: users.mobile,
+            role: users.role,
+            passwordHash: users.passwordHash,
+            profileImageUrl: users.profileImageUrl,
+          })
           .from(users)
           .where(eq(users.mobile, mobile))
           .limit(1);
@@ -75,27 +84,44 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           emailVerified: null,
           mobile: user.mobile,
           role: user.role,
+          profileImageUrl: user.profileImageUrl,
         } satisfies import("next-auth").User;
       },
     }),
   ],
   callbacks: {
-    jwt({ token, user }) {
+    jwt({ token, user, trigger, session }) {
       if (user) {
         token.id = user.id;
+        token.name = user.name;
         token.role = user.role;
         token.mobile = user.mobile;
+        token.profileImageUrl = user.profileImageUrl ?? null;
       }
+
+      if (trigger === "update" && session?.user) {
+        if (session.user.name) {
+          token.name = session.user.name;
+        }
+        if (session.user.profileImageUrl !== undefined) {
+          token.profileImageUrl = session.user.profileImageUrl;
+        }
+      }
+
       return token;
     },
     session({ session, token }) {
       session.user = {
         id: String(token.id ?? ""),
-        name: String(session.user?.name ?? ""),
+        name: String(token.name ?? session.user?.name ?? ""),
         email: String(session.user?.email ?? token.email ?? ""),
         emailVerified: null,
         mobile: String(token.mobile ?? ""),
         role: String(token.role ?? "user"),
+        profileImageUrl:
+          token.profileImageUrl === undefined || token.profileImageUrl === null
+            ? null
+            : String(token.profileImageUrl),
       };
       return session;
     },

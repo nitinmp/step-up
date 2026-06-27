@@ -15,6 +15,7 @@ import {
   isFutureDate,
 } from "@/lib/dates";
 import { computeBasePoints } from "@/lib/scoring";
+import { deleteUserAndData } from "@/lib/user-service";
 import { appConfig } from "@/config";
 
 export type AdminActivityRow = {
@@ -260,4 +261,8 @@ export async function updateAdminUserRole(
   }
 
   return updated;
+}
+
+export async function deleteAdminUser(userId: string, actingAdminId: string) {
+  return deleteUserAndData(userId, actingAdminId);
 }

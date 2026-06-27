@@ -17,6 +17,7 @@ const links: Array<{
   { href: "/activities", label: "Activities" },
   { href: "/log", label: "Log" },
   { href: "/leaderboard", label: "Board" },
+  { href: "/profile", label: "Profile" },
   { href: "/admin", label: "Admin", adminOnly: true },
 ];
 
@@ -29,7 +30,11 @@ export function BottomNav({ isAdmin }: BottomNavProps) {
       <div
         className={cn(
           "mx-auto grid max-w-3xl gap-1 px-2 py-2",
-          visibleLinks.length === 4 ? "grid-cols-4" : "grid-cols-3",
+          visibleLinks.length >= 5
+            ? "grid-cols-5"
+            : visibleLinks.length === 4
+              ? "grid-cols-4"
+              : "grid-cols-3",
         )}
       >
         {visibleLinks.map((link) => {
