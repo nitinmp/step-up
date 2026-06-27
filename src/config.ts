@@ -12,4 +12,6 @@ export const appConfig = {
     password: "changeme123",
   },
   timezone: "Asia/Kolkata",
+  // Vercel Blob → Store → read-write token
+  blobReadWriteToken: "",
 } as const;

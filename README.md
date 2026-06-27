@@ -13,7 +13,7 @@ Mobile-first web app for a 29-day group steps challenge. See [docs/Steps_Challen
 
 All secrets and connection strings live in one file:
 
-**`src/config.ts`** — database URL, auth secret, admin login, timezone.
+**`src/config.ts`** — database URL, auth secret, admin login, timezone, Vercel Blob token.
 
 Edit that file when you need to change credentials. No `.env` files required.
 
@@ -49,7 +49,7 @@ The app reads config from `src/config.ts` at build/runtime, so no Vercel env set
 1. ✅ Scaffold + Drizzle schema + seed
 2. ✅ Auth (register/login/session)
 3. ✅ `computeStandings()` scoring engine
-4. Log activity + activities dashboard
+4. ✅ Log activity + activities dashboard
 5. Leaderboard
 6. Admin moderation
 7. Visual polish

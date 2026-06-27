@@ -1,0 +1,375 @@
+import { put } from "@vercel/blob";
+import { and, eq } from "drizzle-orm";
+
+import { appConfig } from "@/config";
+import { getDb } from "@/db";
+import {
+  activities,
+  challengeConfig,
+  challengeDay,
+} from "@/db/schema";
+import {
+  compareDateStrings,
+  getTodayDateString,
+  isDateWithinRange,
+  isFutureDate,
+} from "@/lib/dates";
+import { computeBasePoints, isBeastMode } from "@/lib/scoring";
+import { computeStandings, getStandingForUser } from "@/lib/standings-service";
+
+const ALLOWED_IMAGE_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/heic",
+  "image/heif",
+]);
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
+export type ChallengeDayRow = {
+  date: string;
+  weekNo: number;
+  targetSteps: number;
+  dayRate: number;
+};
+
+export type ActivityRecord = {
+  id: string;
+  activityDate: string;
+  steps: number;
+  basePoints: number;
+  status: string;
+  adminNote: string | null;
+  photoUrl: string;
+};
+
+export type DashboardDay = ChallengeDayRow & {
+  activity?: ActivityRecord & {
+    isBeast: boolean;
+    isStarOfDay: boolean;
+  };
+  state: "future" | "not_logged" | "logged" | "disapproved";
+  canLog: boolean;
+};
+
+export class ActivityError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+  }
+}
+
+export async function getChallengeWindow() {
+  const db = getDb();
+  const [configRow] = await db.select().from(challengeConfig).limit(1);
+
+  if (!configRow) {
+    throw new Error("Challenge config is not seeded.");
+  }
+
+  const days = await db
+    .select({
+      date: challengeDay.date,
+      weekNo: challengeDay.weekNo,
+      targetSteps: challengeDay.targetSteps,
+      dayRate: challengeDay.dayRate,
+    })
+    .from(challengeDay)
+    .orderBy(challengeDay.date);
+
+  return {
+    config: configRow,
+    days,
+    today: getTodayDateString(appConfig.timezone),
+  };
+}
+
+function buildStarOfDayKeys(
+  approvedActivities: {
+    userId: string;
+    activityDate: string;
+    steps: number;
+  }[],
+): Set<string> {
+  const stepsByDate = new Map<string, Map<string, number>>();
+
+  for (const activity of approvedActivities) {
+    if (activity.steps <= 0) {
+      continue;
+    }
+
+    const dateMap = stepsByDate.get(activity.activityDate) ?? new Map();
+    dateMap.set(activity.userId, activity.steps);
+    stepsByDate.set(activity.activityDate, dateMap);
+  }
+
+  const winners = new Set<string>();
+
+  for (const [date, userSteps] of stepsByDate) {
+    const maxSteps = Math.max(...userSteps.values(), 0);
+    if (maxSteps <= 0) {
+      continue;
+    }
+
+    for (const [userId, steps] of userSteps) {
+      if (steps === maxSteps) {
+        winners.add(`${date}:${userId}`);
+      }
+    }
+  }
+
+  return winners;
+}
+
+export async function getActivitiesDashboard(userId: string) {
+  const db = getDb();
+  const { config, days, today } = await getChallengeWindow();
+
+  const [userActivities, approvedForStars, standings] = await Promise.all([
+    db
+      .select({
+        id: activities.id,
+        activityDate: activities.activityDate,
+        steps: activities.steps,
+        basePoints: activities.basePoints,
+        status: activities.status,
+        adminNote: activities.adminNote,
+        photoUrl: activities.photoUrl,
+      })
+      .from(activities)
+      .where(eq(activities.userId, userId)),
+    db
+      .select({
+        userId: activities.userId,
+        activityDate: activities.activityDate,
+        steps: activities.steps,
+        status: activities.status,
+      })
+      .from(activities),
+    computeStandings(),
+  ]);
+
+  const activityByDate = new Map(
+    userActivities.map((activity) => [activity.activityDate, activity]),
+  );
+  const starOfDayKeys = buildStarOfDayKeys(
+    approvedForStars.filter((activity) => activity.status === "approved"),
+  );
+  const standing = getStandingForUser(standings, userId);
+
+  const dayRows: DashboardDay[] = days
+    .slice()
+    .sort((a, b) => compareDateStrings(b.date, a.date))
+    .map((day) => {
+      const activity = activityByDate.get(day.date);
+      const isFuture = isFutureDate(day.date, appConfig.timezone);
+      const inWindow = isDateWithinRange(
+        day.date,
+        config.startDate,
+        config.endDate,
+      );
+      const canLog =
+        inWindow &&
+        !isFuture &&
+        !activity &&
+        compareDateStrings(day.date, today) <= 0;
+
+      let state: DashboardDay["state"] = "not_logged";
+      if (isFuture) {
+        state = "future";
+      } else if (activity?.status === "disapproved") {
+        state = "disapproved";
+      } else if (activity) {
+        state = "logged";
+      }
+
+      return {
+        ...day,
+        activity: activity
+          ? {
+              ...activity,
+              isBeast: isBeastMode(
+                activity.steps,
+                day.targetSteps,
+                config.beastMultiplier,
+              ),
+              isStarOfDay:
+                activity.status === "approved" &&
+                starOfDayKeys.has(`${day.date}:${userId}`),
+            }
+          : undefined,
+        state,
+        canLog,
+      };
+    });
+
+  return {
+    today,
+    standing,
+    participantCount: standings.length,
+    dayRows,
+  };
+}
+
+export async function getLogContext(userId: string) {
+  const db = getDb();
+  const { config, days, today } = await getChallengeWindow();
+
+  const logged = await db
+    .select({ activityDate: activities.activityDate })
+    .from(activities)
+    .where(eq(activities.userId, userId));
+
+  const loggedDates = new Set(logged.map((row) => row.activityDate));
+
+  const selectableDays = days.filter((day) => {
+    if (loggedDates.has(day.date)) {
+      return false;
+    }
+    if (isFutureDate(day.date, appConfig.timezone)) {
+      return false;
+    }
+    return isDateWithinRange(day.date, config.startDate, config.endDate);
+  });
+
+  const defaultDate =
+    selectableDays.find((day) => day.date === today)?.date ??
+    selectableDays.at(-1)?.date ??
+    today;
+
+  return {
+    today,
+    defaultDate,
+    selectableDays,
+    loggedDates: [...loggedDates],
+  };
+}
+
+export async function createActivity(input: {
+  userId: string;
+  activityDate: string;
+  steps: number;
+  photo: File;
+}) {
+  const db = getDb();
+  const { config, days } = await getChallengeWindow();
+  const day = days.find((entry) => entry.date === input.activityDate);
+
+  if (!day) {
+    throw new ActivityError("Invalid challenge date.", 400);
+  }
+
+  if (
+    !isDateWithinRange(input.activityDate, config.startDate, config.endDate)
+  ) {
+    throw new ActivityError("Date is outside the challenge window.", 400);
+  }
+
+  if (isFutureDate(input.activityDate, appConfig.timezone)) {
+    throw new ActivityError("Future dates cannot be logged.", 400);
+  }
+
+  if (!Number.isInteger(input.steps) || input.steps < 0) {
+    throw new ActivityError("Steps must be a whole number ≥ 0.", 400);
+  }
+
+  if (!input.photo || input.photo.size === 0) {
+    throw new ActivityError("Photo is required.", 400);
+  }
+
+  if (input.photo.size > MAX_IMAGE_BYTES) {
+    throw new ActivityError("Photo must be 5 MB or smaller.", 400);
+  }
+
+  if (!ALLOWED_IMAGE_TYPES.has(input.photo.type)) {
+    throw new ActivityError("Photo must be JPG, PNG, or WebP.", 400);
+  }
+
+  if (!appConfig.blobReadWriteToken) {
+    throw new ActivityError(
+      "Photo storage is not configured. Add blobReadWriteToken to src/config.ts.",
+      500,
+    );
+  }
+
+  const [existing] = await db
+    .select({ id: activities.id })
+    .from(activities)
+    .where(
+      and(
+        eq(activities.userId, input.userId),
+        eq(activities.activityDate, input.activityDate),
+      ),
+    )
+    .limit(1);
+
+  if (existing) {
+    throw new ActivityError(
+      "Already logged for this date — ask an admin to edit.",
+      409,
+    );
+  }
+
+  const extension =
+    input.photo.type.split("/")[1]?.replace("jpeg", "jpg") ?? "jpg";
+  const pathname = `activities/${input.userId}/${input.activityDate}-${Date.now()}.${extension}`;
+
+  const uploaded = await put(pathname, input.photo, {
+    access: "public",
+    token: appConfig.blobReadWriteToken,
+    contentType: input.photo.type,
+  });
+
+  const basePoints = computeBasePoints(
+    input.steps,
+    day.targetSteps,
+    day.dayRate,
+  );
+
+  const [created] = await db
+    .insert(activities)
+    .values({
+      userId: input.userId,
+      activityDate: input.activityDate,
+      steps: input.steps,
+      photoUrl: uploaded.url,
+      status: "approved",
+      basePoints,
+    })
+    .returning({
+      id: activities.id,
+      activityDate: activities.activityDate,
+      steps: activities.steps,
+      basePoints: activities.basePoints,
+      status: activities.status,
+      photoUrl: activities.photoUrl,
+    });
+
+  const approvedActivities = await db
+    .select({
+      userId: activities.userId,
+      activityDate: activities.activityDate,
+      steps: activities.steps,
+      status: activities.status,
+    })
+    .from(activities);
+
+  const starOfDayKeys = buildStarOfDayKeys(
+    approvedActivities.filter((activity) => activity.status === "approved"),
+  );
+  const standings = await computeStandings();
+
+  return {
+    activity: created,
+    day,
+    isStarOfDay: starOfDayKeys.has(`${input.activityDate}:${input.userId}`),
+    isBeast: isBeastMode(
+      input.steps,
+      day.targetSteps,
+      config.beastMultiplier,
+    ),
+    standing: getStandingForUser(standings, input.userId),
+  };
+}
