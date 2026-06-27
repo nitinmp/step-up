@@ -1,11 +1,13 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { useState } from "react";
 
-import { AuthCard } from "@/components/auth/auth-card";
+import { AuthCard, AuthFooterLink } from "@/components/auth/auth-card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 export function LoginForm() {
   const router = useRouter();
@@ -45,19 +47,16 @@ export function LoginForm() {
       subtitle="Track your steps and climb the leaderboard."
       footer={
         <>
-          New here?{" "}
-          <Link href="/register" className="font-medium text-brand">
-            Create an account
-          </Link>
+          New here? <AuthFooterLink href="/register">Create an account</AuthFooterLink>
         </>
       }
     >
       <form className="space-y-4" onSubmit={handleSubmit}>
-        <label className="block space-y-2">
-          <span className="text-sm font-medium text-foreground">Mobile</span>
-          <input
+        <div className="space-y-2">
+          <Label htmlFor="mobile">Mobile</Label>
+          <Input
             autoComplete="tel"
-            className="field-input"
+            id="mobile"
             inputMode="numeric"
             name="mobile"
             onChange={(event) => setMobile(event.target.value)}
@@ -66,13 +65,13 @@ export function LoginForm() {
             type="tel"
             value={mobile}
           />
-        </label>
+        </div>
 
-        <label className="block space-y-2">
-          <span className="text-sm font-medium text-foreground">Password</span>
-          <input
+        <div className="space-y-2">
+          <Label htmlFor="password">Password</Label>
+          <Input
             autoComplete="current-password"
-            className="field-input"
+            id="password"
             name="password"
             onChange={(event) => setPassword(event.target.value)}
             placeholder="Your password"
@@ -80,21 +79,17 @@ export function LoginForm() {
             type="password"
             value={password}
           />
-        </label>
+        </div>
 
         {error ? (
-          <p className="rounded-2xl bg-danger/10 px-4 py-3 text-sm text-danger">
+          <p className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
             {error}
           </p>
         ) : null}
 
-        <button
-          className="w-full rounded-2xl bg-brand px-4 py-3 text-base font-semibold text-white transition hover:bg-brand-dark disabled:opacity-60"
-          disabled={loading}
-          type="submit"
-        >
+        <Button className="w-full" disabled={loading} type="submit">
           {loading ? "Logging in…" : "Log in"}
-        </button>
+        </Button>
       </form>
     </AuthCard>
   );

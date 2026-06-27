@@ -2,49 +2,47 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --brand: 15 110 86;
-  --brand-dark: 10 84 67;
-  --gold: 242 183 5;
-  --background: 251 249 243;
-  --surface: 255 255 255;
-  --foreground: 22 48 42;
-  --muted: 85 97 92;
-  --success: 15 110 86;
-  --warning: 242 183 5;
-  --danger: 215 64 47;
-  --medal-gold: 255 217 102;
-  --medal-silver: 217 217 217;
-  --medal-bronze: 224 176 132;
-}
+@layer base {
+  :root {
+    --brand: 15 110 86;
+    --brand-dark: 10 84 67;
+    --gold: 242 183 5;
+    --surface: 255 255 255;
+    --warning: 242 183 5;
+    --danger: 215 64 47;
+    --medal-gold: 255 217 102;
+    --medal-silver: 217 217 217;
+    --medal-bronze: 224 176 132;
 
-body {
-  background: rgb(var(--background));
-  color: rgb(var(--foreground));
-  font-family: var(--font-geist-sans), system-ui, sans-serif;
-}
+    --background: 251 249 243;
+    --foreground: 22 48 42;
+    --card: 255 255 255;
+    --card-foreground: 22 48 42;
+    --popover: 255 255 255;
+    --popover-foreground: 22 48 42;
+    --primary: 15 110 86;
+    --primary-foreground: 255 255 255;
+    --secondary: 240 247 244;
+    --secondary-foreground: 22 48 42;
+    --muted: 240 244 243;
+    --muted-foreground: 85 97 92;
+    --accent: 232 244 239;
+    --accent-foreground: 22 48 42;
+    --destructive: 215 64 47;
+    --destructive-foreground: 255 255 255;
+    --border: 226 232 230;
+    --input: 226 232 230;
+    --ring: 15 110 86;
+    --radius: 0.75rem;
 
-.field-input {
-  width: 100%;
-  border-radius: 1rem;
-  border: 1px solid rgb(0 0 0 / 0.1);
-  background: rgb(var(--background));
-  padding: 0.75rem 1rem;
-  font-size: 1rem;
-  line-height: 1.5rem;
-  outline: none;
-  transition: box-shadow 0.15s ease;
-}
+    --rank-1: 255 217 102;
+    --rank-2: 217 217 217;
+    --rank-3: 224 176 132;
+    --success-600: 15 110 86;
+  }
 
-.field-input:focus-visible {
-  box-shadow: 0 0 0 2px rgb(var(--brand));
-}
-
-button:focus-visible,
-a:focus-visible,
-select:focus-visible,
-input:focus-visible,
-textarea:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px rgb(var(--brand));
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: var(--font-geist-sans), var(--font-sans), system-ui, sans-serif;
+  }
 }

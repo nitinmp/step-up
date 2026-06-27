@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import { cn } from "@/lib/cn";
+import { cn } from "@/lib/utils";
 
 type BottomNavProps = {
   isAdmin: boolean;
@@ -25,7 +25,7 @@ export function BottomNav({ isAdmin }: BottomNavProps) {
   const visibleLinks = links.filter((link) => !link.adminOnly || isAdmin);
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-10 border-t border-black/5 bg-surface/95 backdrop-blur">
+    <nav className="fixed inset-x-0 bottom-0 z-10 border-t border-border bg-card/95 backdrop-blur">
       <div
         className={cn(
           "mx-auto grid max-w-3xl gap-1 px-2 py-2",
@@ -39,10 +39,10 @@ export function BottomNav({ isAdmin }: BottomNavProps) {
           return (
             <Link
               className={cn(
-                "rounded-2xl px-2 py-3 text-center text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand",
+                "rounded-2xl px-2 py-3 text-center text-sm font-medium transition-colors",
                 active
-                  ? "bg-brand text-white shadow-sm"
-                  : "text-muted hover:bg-brand/10 hover:text-brand",
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
               )}
               href={link.href}
               key={link.href}

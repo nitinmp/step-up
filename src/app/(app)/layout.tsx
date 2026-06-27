@@ -1,10 +1,12 @@
 import Link from "next/link";
-import Image from "next/image";
 
 import { auth, signOut } from "@/auth";
 import { BottomNav } from "@/components/app/bottom-nav";
 import { photoProxyUrl } from "@/lib/blob-storage";
 import { computeStandings, getStandingForUser } from "@/lib/standings-service";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 export default async function AppLayout({
   children,
@@ -17,50 +19,50 @@ export default async function AppLayout({
 
   return (
     <div className="flex min-h-full flex-col bg-background">
-      <header className="sticky top-0 z-10 border-b border-black/5 bg-surface/95 backdrop-blur">
+      <header className="sticky top-0 z-10 border-b border-border bg-card/95 backdrop-blur">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-4">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">
               Step Up
             </p>
-            <p className="text-sm text-muted">29-day challenge</p>
+            <p className="text-sm text-muted-foreground">29-day challenge</p>
           </div>
           <div className="flex items-center gap-2">
             {standing ? (
-              <span className="rounded-full bg-gold/20 px-3 py-1 text-sm font-semibold text-foreground">
+              <Badge variant="secondary">
                 #{standing.rank} · {standing.total} pts
-              </span>
+              </Badge>
             ) : null}
-            <Link
-              className="hidden items-center gap-2 rounded-full bg-brand/10 px-3 py-1 text-sm font-medium text-brand sm:inline-flex"
-              href="/profile"
+            <Button
+              asChild
+              className="hidden h-9 gap-2 rounded-full sm:inline-flex"
+              size="sm"
+              variant="secondary"
             >
-              {session?.user.profileImageUrl ? (
-                <span className="relative h-6 w-6 overflow-hidden rounded-full">
-                  <Image
-                    alt=""
-                    className="object-cover"
-                    fill
-                    sizes="24px"
-                    src={photoProxyUrl(session.user.profileImageUrl)}
-                    unoptimized
-                  />
-                </span>
-              ) : null}
-              {session?.user.name}
-            </Link>
+              <Link href="/profile">
+                {session?.user.profileImageUrl ? (
+                  <Avatar className="h-6 w-6">
+                    <AvatarImage
+                      alt=""
+                      src={photoProxyUrl(session.user.profileImageUrl)}
+                    />
+                    <AvatarFallback>
+                      {session?.user.name?.charAt(0).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                ) : null}
+                {session?.user.name}
+              </Link>
+            </Button>
             <form
               action={async () => {
                 "use server";
                 await signOut({ redirectTo: "/login" });
               }}
             >
-              <button
-                className="text-sm font-medium text-muted hover:text-foreground"
-                type="submit"
-              >
+              <Button size="sm" type="submit" variant="ghost">
                 Log out
-              </button>
+              </Button>
             </form>
           </div>
         </div>
