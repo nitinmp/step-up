@@ -42,9 +42,11 @@ export function BottomNav({ isAdmin }: BottomNavProps) {
               className={cn(
                 "rounded-2xl px-2 py-3 text-center text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand",
                 active
-                  ? "bg-brand text-white shadow-sm"
+                  ? "font-semibold shadow-sm"
                   : "text-muted hover:bg-brand/10 hover:text-brand",
               )}
+              data-active={active ? "" : undefined}
+              data-slot="bottom-nav-link"
               href={link.href}
               key={link.href}
             >

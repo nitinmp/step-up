@@ -37,7 +37,7 @@ const ADMIN_TABS: AdminTab[] = ["review", "approved", "participants", "scoring"]
 const MOBILE_VISIBLE_TABS = 3;
 
 const adminTabTriggerClass =
-  "shrink-0 px-2 py-2.5 text-sm font-medium sm:px-3 group-data-[variant=line]/tabs-list:aria-selected:bg-brand/10 group-data-[variant=line]/tabs-list:data-[active]:bg-brand/10";
+  "shrink-0 rounded-lg px-2 py-2.5 text-sm font-medium sm:px-3";
 
 function getAdminTabLabel(
   tab: AdminTab,

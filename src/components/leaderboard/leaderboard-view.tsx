@@ -1,4 +1,5 @@
 import type { UserStanding } from "@/lib/standings";
+import { ParticipantAvatar } from "@/components/app/participant-avatar";
 
 type LeaderboardViewProps = {
   standings: UserStanding[];
@@ -85,7 +86,14 @@ function PodiumCard({
       <p className="text-sm font-semibold uppercase tracking-wide text-foreground/70">
         #{row.rank} {row.rank === 1 ? "🥇" : row.rank === 2 ? "🥈" : "🥉"}
       </p>
-      <p className="mt-2 truncate text-lg font-semibold text-foreground">
+      <div className="mt-3 flex justify-center">
+        <ParticipantAvatar
+          name={row.name}
+          profileImageUrl={row.profileImageUrl}
+          size="lg"
+        />
+      </div>
+      <p className="mt-3 truncate text-lg font-semibold text-foreground">
         {row.name}
         {isCurrentUser ? " (You)" : ""}
       </p>
@@ -126,6 +134,12 @@ function LeaderboardRow({
       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-background text-sm font-bold text-foreground">
         {row.rank}
       </div>
+
+      <ParticipantAvatar
+        name={row.name}
+        profileImageUrl={row.profileImageUrl}
+        size="md"
+      />
 
       <div className="min-w-0 flex-1">
         <p className="truncate font-medium text-foreground">

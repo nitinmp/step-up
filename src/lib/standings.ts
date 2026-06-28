@@ -20,6 +20,7 @@ export type UserInput = {
   id: string;
   name: string;
   createdAt: Date;
+  profileImageUrl?: string | null;
 };
 
 export type ActivityInput = {
@@ -40,6 +41,7 @@ export type StandingsBreakdown = {
 export type UserStanding = {
   userId: string;
   name: string;
+  profileImageUrl: string | null;
   rank: number;
   total: number;
   breakdown: StandingsBreakdown;
@@ -299,6 +301,7 @@ export function computeStandingsFromData(
     return {
       userId: user.id,
       name: user.name,
+      profileImageUrl: user.profileImageUrl ?? null,
       rank: 0,
       total,
       breakdown,

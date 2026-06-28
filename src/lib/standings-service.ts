@@ -26,6 +26,7 @@ export async function computeStandings(): Promise<UserStanding[]> {
         id: users.id,
         name: users.name,
         createdAt: users.createdAt,
+        profileImageUrl: users.profileImageUrl,
       })
       .from(users),
     db
@@ -52,6 +53,7 @@ export async function computeStandings(): Promise<UserStanding[]> {
       id: user.id,
       name: user.name,
       createdAt: user.createdAt,
+      profileImageUrl: user.profileImageUrl,
     })),
     activities: allActivities.map((activity) => ({
       userId: activity.userId,

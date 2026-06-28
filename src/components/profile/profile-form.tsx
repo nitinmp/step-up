@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
 
 import { photoProxyUrl } from "@/lib/blob-storage";
+import { getInitials } from "@/lib/user-display";
 
 type ProfileUser = {
   id: string;
@@ -192,7 +193,7 @@ export function ProfileForm() {
               />
             ) : (
               <div className="flex h-full w-full items-center justify-center text-2xl font-semibold text-brand">
-                {profile.name.charAt(0).toUpperCase()}
+                {getInitials(profile.name)}
               </div>
             )}
           </div>

@@ -7,6 +7,7 @@ import { appConfig } from "@/config";
 import { users } from "@/db/schema";
 import { normalizeMobile, validateIndianMobile } from "@/lib/mobile";
 import { verifyPassword } from "@/lib/password";
+import { getUserProfile } from "@/lib/user-service";
 
 declare module "next-auth" {
   interface Session {
@@ -32,6 +33,24 @@ declare module "next-auth" {
     profileImageUrl: string | null;
     mustChangePassword: boolean;
   }
+}
+
+async function enrichSessionFromDb(
+  session: import("next-auth").Session,
+): Promise<import("next-auth").Session> {
+  const userId = session.user?.id;
+  if (!userId) {
+    return session;
+  }
+
+  const profile = await getUserProfile(userId);
+  if (!profile) {
+    return session;
+  }
+
+  session.user.name = profile.name;
+  session.user.profileImageUrl = profile.profileImageUrl;
+  return session;
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -118,7 +137,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
       return token;
     },
-    session({ session, token }) {
+    async session({ session, token }) {
       session.user = {
         id: String(token.id ?? ""),
         name: String(token.name ?? session.user?.name ?? ""),
@@ -132,7 +151,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             : String(token.profileImageUrl),
         mustChangePassword: token.mustChangePassword === true,
       };
-      return session;
+
+      return enrichSessionFromDb(session);
     },
   },
 });
