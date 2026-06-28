@@ -4,26 +4,30 @@ import { ParticipantAvatar } from "@/components/app/participant-avatar";
 type LeaderboardViewProps = {
   standings: UserStanding[];
   currentUserId: string;
+  embedded?: boolean;
 };
 
 export function LeaderboardView({
   standings,
   currentUserId,
+  embedded = false,
 }: LeaderboardViewProps) {
   const hasScores = standings.some((row) => row.total > 0 || row.totalSteps > 0);
   const topThree = standings.filter((row) => row.rank <= 3);
 
   return (
     <div className="space-y-6">
-      <header className="rounded-3xl bg-gradient-to-br from-brand to-brand-dark p-6 text-white shadow-sm">
-        <p className="text-sm uppercase tracking-[0.2em] text-white/80">
-          Overall standings
-        </p>
-        <h1 className="mt-2 text-3xl font-semibold">Leaderboard</h1>
-        <p className="mt-2 text-sm text-white/85">
-          {standings.length} participants · ranked by total points
-        </p>
-      </header>
+      {!embedded ? (
+        <header className="rounded-3xl bg-gradient-to-br from-brand to-brand-dark p-6 text-white shadow-sm">
+          <p className="text-sm uppercase tracking-[0.2em] text-white/80">
+            Overall standings
+          </p>
+          <h1 className="mt-2 text-3xl font-semibold">Leaderboard</h1>
+          <p className="mt-2 text-sm text-white/85">
+            {standings.length} participants · ranked by total points
+          </p>
+        </header>
+      ) : null}
 
       {!hasScores ? (
         <section className="rounded-3xl border border-black/5 bg-surface p-8 text-center">

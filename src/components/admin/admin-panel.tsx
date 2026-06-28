@@ -34,7 +34,7 @@ type AdminPanelProps = {
 type AdminTab = "review" | "approved" | "participants" | "scoring";
 
 const ADMIN_TABS: AdminTab[] = ["review", "approved", "participants", "scoring"];
-const MOBILE_VISIBLE_TABS = 3;
+const VISIBLE_TABS = 2;
 
 const adminTabTriggerClass =
   "shrink-0 rounded-lg px-2 py-2.5 text-sm font-medium sm:px-3";
@@ -65,20 +65,6 @@ function promoteTabToVisibleEnd(
   return [...rest.slice(0, visibleCount - 1), tab, ...rest.slice(visibleCount - 1)];
 }
 
-function useIsMobile() {
-  const [isMobile, setIsMobile] = useState(false);
-
-  useEffect(() => {
-    const media = window.matchMedia("(max-width: 639px)");
-    const update = () => setIsMobile(media.matches);
-    update();
-    media.addEventListener("change", update);
-    return () => media.removeEventListener("change", update);
-  }, []);
-
-  return isMobile;
-}
-
 function AdminTabOverflowMenu({
   tabs,
   activeTab,
@@ -97,7 +83,7 @@ function AdminTabOverflowMenu({
   const activeInOverflow = tabs.includes(activeTab);
 
   return (
-    <div className="relative mb-0.5 shrink-0 sm:hidden">
+    <div className="relative mb-0.5 shrink-0">
       <button
         aria-expanded={open}
         aria-haspopup="menu"
@@ -192,7 +178,6 @@ export function AdminPanel({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [mobileTabOrder, setMobileTabOrder] = useState<AdminTab[]>(ADMIN_TABS);
   const [overflowMenuOpen, setOverflowMenuOpen] = useState(false);
-  const isMobile = useIsMobile();
 
   const reviewCount = useMemo(
     () =>
@@ -224,33 +209,27 @@ export function AdminPanel({
     });
   }, [activities, userFilter, dateFilter, adminTab]);
 
-  const visibleTabs = isMobile
-    ? mobileTabOrder.slice(0, MOBILE_VISIBLE_TABS)
-    : ADMIN_TABS;
-  const overflowTabs = isMobile ? mobileTabOrder.slice(MOBILE_VISIBLE_TABS) : [];
+  const visibleTabs = mobileTabOrder.slice(0, VISIBLE_TABS);
+  const overflowTabs = mobileTabOrder.slice(VISIBLE_TABS);
 
   useEffect(() => {
-    if (!isMobile) {
-      return;
-    }
-
     setMobileTabOrder((current) => {
-      const visible = current.slice(0, MOBILE_VISIBLE_TABS);
+      const visible = current.slice(0, VISIBLE_TABS);
       if (visible.includes(adminTab)) {
         return current;
       }
-      return promoteTabToVisibleEnd(current, adminTab, MOBILE_VISIBLE_TABS);
+      return promoteTabToVisibleEnd(current, adminTab, VISIBLE_TABS);
     });
-  }, [adminTab, isMobile]);
+  }, [adminTab]);
 
   function selectAdminTab(tab: AdminTab) {
     setAdminTab(tab);
     setFiltersOpen(false);
     setOverflowMenuOpen(false);
 
-    if (isMobile && !visibleTabs.includes(tab)) {
+    if (!visibleTabs.includes(tab)) {
       setMobileTabOrder((current) =>
-        promoteTabToVisibleEnd(current, tab, MOBILE_VISIBLE_TABS),
+        promoteTabToVisibleEnd(current, tab, VISIBLE_TABS),
       );
     }
   }

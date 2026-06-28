@@ -1,8 +1,9 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
-import { LeaderboardView } from "@/components/leaderboard/leaderboard-view";
-import { computeStandings } from "@/lib/standings-service";
+import { LeaderboardHub } from "@/components/leaderboard/leaderboard-hub";
+import { getLeaderboardHubData } from "@/lib/period-leaderboard-service";
 
 export default async function LeaderboardPage() {
   const session = await auth();
@@ -10,12 +11,23 @@ export default async function LeaderboardPage() {
     redirect("/login");
   }
 
-  const standings = await computeStandings();
+  const data = await getLeaderboardHubData(session.user.id);
 
   return (
-    <LeaderboardView
-      currentUserId={session.user.id}
-      standings={standings}
-    />
+    <Suspense
+      fallback={
+        <div className="rounded-3xl border border-black/5 bg-surface p-8 text-center text-muted">
+          Loading leaderboard…
+        </div>
+      }
+    >
+      <LeaderboardHub
+        currentDaily={data.currentDaily}
+        currentUserId={data.currentUserId}
+        currentWeekly={data.currentWeekly}
+        overallStandings={data.overallStandings}
+        periods={data.periods}
+      />
+    </Suspense>
   );
 }
