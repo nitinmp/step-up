@@ -59,6 +59,7 @@ export type WeekStat = {
   weekNo: number;
   daysWalked: number;
   totalSteps: number;
+  totalDistanceKm: number;
 };
 
 function buildWeekStats(
@@ -66,10 +67,13 @@ function buildWeekStats(
     DashboardDay & { activity: NonNullable<DashboardDay["activity"]> }
   >,
 ): WeekStat[] {
-  const totals = new Map<number, { daysWalked: number; totalSteps: number }>();
+  const totals = new Map<
+    number,
+    { daysWalked: number; totalSteps: number; totalDistanceKm: number }
+  >();
 
   for (const weekNo of [1, 2, 3, 4]) {
-    totals.set(weekNo, { daysWalked: 0, totalSteps: 0 });
+    totals.set(weekNo, { daysWalked: 0, totalSteps: 0, totalDistanceKm: 0 });
   }
 
   for (const day of loggedActivities) {
@@ -80,6 +84,7 @@ function buildWeekStats(
     const entry = totals.get(day.weekNo)!;
     entry.daysWalked += 1;
     entry.totalSteps += day.activity.steps;
+    entry.totalDistanceKm += Number(day.activity.distanceKm);
   }
 
   return [1, 2, 3, 4].map((weekNo) => ({

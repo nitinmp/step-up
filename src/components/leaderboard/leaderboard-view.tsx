@@ -29,16 +29,16 @@ export function LeaderboardView({
         </header>
       ) : null}
 
-      {!hasScores ? (
+      {standings.length === 0 ? (
         <section className="rounded-3xl border border-black/5 bg-surface p-8 text-center">
-          <p className="text-lg font-medium text-foreground">No scores yet</p>
+          <p className="text-lg font-medium text-foreground">No participants yet</p>
           <p className="mt-2 text-muted">
-            Once people start logging steps, rankings will show up here.
+            Once people join the challenge, they will appear here.
           </p>
         </section>
       ) : (
         <>
-          {topThree.length > 0 ? (
+          {hasScores && topThree.length > 0 ? (
             <section className="grid gap-3 sm:grid-cols-3">
               {topThree.map((row) => (
                 <PodiumCard
@@ -51,9 +51,16 @@ export function LeaderboardView({
           ) : null}
 
           <section className="space-y-2">
-            <h2 className="text-sm font-semibold uppercase tracking-[0.15em] text-muted">
-              Full rankings
-            </h2>
+            <div>
+              <h2 className="text-sm font-semibold uppercase tracking-[0.15em] text-muted">
+                {hasScores ? "Full rankings" : "Participants"}
+              </h2>
+              {!hasScores ? (
+                <p className="mt-1 text-sm text-muted">
+                  Everyone in the challenge · scores update as people log activity
+                </p>
+              ) : null}
+            </div>
             {standings.map((row) => (
               <LeaderboardRow
                 currentUserId={currentUserId}

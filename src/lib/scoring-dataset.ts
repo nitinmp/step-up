@@ -14,11 +14,43 @@ export type ScoringDataset = StandingsInput & {
   calendarToday: string;
 };
 
+function isTransientDbError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  const message = error.message.toLowerCase();
+  if (message.includes("fetch failed") || message.includes("connect")) {
+    return true;
+  }
+
+  const cause = (error as { cause?: unknown }).cause;
+  return cause instanceof Error && cause.message.toLowerCase().includes("fetch failed");
+}
+
+async function withDbRetry<T>(operation: () => Promise<T>, attempts = 3): Promise<T> {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+      if (!isTransientDbError(error) || attempt === attempts - 1) {
+        throw error;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 200 * (attempt + 1)));
+    }
+  }
+
+  throw lastError;
+}
+
 export async function loadScoringDataset(): Promise<ScoringDataset> {
-  const db = getDb();
-  const [configRow, allUsers, allActivities, allChallengeDays] =
-    await Promise.all([
-      db.select().from(challengeConfig).limit(1).then((rows) => rows[0]),
+  return withDbRetry(async () => {
+    const db = getDb();
+    const [configRows, allUsers, allActivities, allChallengeDays] = await db.batch([
+      db.select().from(challengeConfig).limit(1),
       db
         .select({
           id: users.id,
@@ -43,44 +75,47 @@ export async function loadScoringDataset(): Promise<ScoringDataset> {
           dayRate: challengeDay.dayRate,
           targetSteps: challengeDay.targetSteps,
         })
-        .from(challengeDay),
+        .from(challengeDay)
+        .orderBy(challengeDay.date),
     ]);
 
-  if (!configRow) {
-    throw new Error("Challenge config is not seeded.");
-  }
+    const configRow = configRows[0];
+    if (!configRow) {
+      throw new Error("Challenge config is not seeded.");
+    }
 
-  const calendarToday = getTodayDateString(appConfig.timezone);
+    const calendarToday = getTodayDateString(appConfig.timezone);
 
-  return {
-    calendarToday,
-    users: allUsers.map((user) => ({
-      id: user.id,
-      name: user.name,
-      createdAt: user.createdAt,
-      profileImageUrl: user.profileImageUrl,
-    })),
-    activities: allActivities.map((activity) => ({
-      userId: activity.userId,
-      activityDate: activity.activityDate,
-      steps: activity.steps,
-      basePoints: activity.basePoints,
-      status: activity.status,
-    })),
-    challengeDays: allChallengeDays.map((day) => ({
-      date: day.date,
-      weekNo: day.weekNo,
-      dayRate: day.dayRate,
-      targetSteps: day.targetSteps,
-    })),
-    config: {
-      starOfDayPoints: configRow.starOfDayPoints,
-      starOfWeekPoints: configRow.starOfWeekPoints,
-      beastMultiplier: configRow.beastMultiplier,
-      consistency5: configRow.consistency5,
-      consistency6: configRow.consistency6,
-      consistency7: configRow.consistency7,
-    },
-    today: calendarToday,
-  };
+    return {
+      calendarToday,
+      users: allUsers.map((user) => ({
+        id: user.id,
+        name: user.name,
+        createdAt: user.createdAt,
+        profileImageUrl: user.profileImageUrl,
+      })),
+      activities: allActivities.map((activity) => ({
+        userId: activity.userId,
+        activityDate: activity.activityDate,
+        steps: activity.steps,
+        basePoints: activity.basePoints,
+        status: activity.status,
+      })),
+      challengeDays: allChallengeDays.map((day) => ({
+        date: day.date,
+        weekNo: day.weekNo,
+        dayRate: day.dayRate,
+        targetSteps: day.targetSteps,
+      })),
+      config: {
+        starOfDayPoints: configRow.starOfDayPoints,
+        starOfWeekPoints: configRow.starOfWeekPoints,
+        beastMultiplier: configRow.beastMultiplier,
+        consistency5: configRow.consistency5,
+        consistency6: configRow.consistency6,
+        consistency7: configRow.consistency7,
+      },
+      today: calendarToday,
+    };
+  });
 }

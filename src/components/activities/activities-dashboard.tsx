@@ -24,19 +24,28 @@ export function ActivitiesSummary({
   const bonusTotal = breakdown
     ? breakdown.starDay + breakdown.weekStar + breakdown.consistency
     : 0;
+  const totalDistanceKm = weekStats.reduce(
+    (sum, week) => sum + week.totalDistanceKm,
+    0,
+  );
 
   return (
     <section className="rounded-3xl bg-gradient-to-br from-brand to-brand-dark p-6 text-white shadow-sm">
       <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-sm uppercase tracking-[0.2em] text-white/80">
-            Total points
-          </p>
-          <p className="mt-2 text-5xl font-semibold tabular-nums">
-            {standing?.total ?? 0}
-          </p>
+        <div className="min-w-0 flex-1">
+          <div className="grid grid-cols-3 gap-3 sm:gap-4">
+            <SummaryStat label="Total points" value={standing?.total ?? 0} />
+            <SummaryStat
+              label="Total steps"
+              value={(standing?.totalSteps ?? 0).toLocaleString("en-IN")}
+            />
+            <SummaryStat
+              label="Total km"
+              value={formatDistanceKm(totalDistanceKm).replace(" km", "")}
+            />
+          </div>
           {breakdown && bonusTotal > 0 ? (
-            <p className="mt-1 text-sm text-white/85">
+            <p className="mt-3 text-sm text-white/85">
               {breakdown.base} from steps · {bonusTotal} in bonuses
             </p>
           ) : null}
@@ -74,10 +83,32 @@ export function ActivitiesSummary({
             <p className="mt-0.5 text-xs text-white/80 tabular-nums">
               {week.totalSteps.toLocaleString("en-IN")} steps
             </p>
+            <p className="mt-0.5 text-xs text-white/80 tabular-nums">
+              {formatDistanceKm(week.totalDistanceKm)}
+            </p>
           </div>
         ))}
       </div>
     </section>
+  );
+}
+
+function SummaryStat({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | number;
+}) {
+  return (
+    <div className="min-w-0">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-white/80 sm:text-xs sm:tracking-[0.2em]">
+        {label}
+      </p>
+      <p className="mt-1 text-2xl font-semibold tabular-nums sm:mt-2 sm:text-4xl lg:text-5xl">
+        {value}
+      </p>
+    </div>
   );
 }
 
