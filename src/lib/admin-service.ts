@@ -8,7 +8,10 @@ import {
 } from "@/db/schema";
 import {
   ActivityError,
+  validateActivityPhoto,
 } from "@/lib/activities-service";
+import { deleteBlobUrl, uploadBlob } from "@/lib/blob-storage";
+import { appConfig } from "@/config";
 import type { Division, Gender } from "@/lib/divisions";
 import { isValidGender, parseDivision, parseGender } from "@/lib/divisions";
 import { distanceKmToStorage, parseDistanceKm } from "@/lib/distance";
@@ -136,6 +139,7 @@ export async function updateAdminActivity(
     steps?: number;
     distanceKm?: string | number;
     activityDate?: string;
+    photo?: File | null;
   },
 ) {
   const db = getDb();
@@ -149,6 +153,7 @@ export async function updateAdminActivity(
       distanceKm: activities.distanceKm,
       basePoints: activities.basePoints,
       status: activities.status,
+      photoUrl: activities.photoUrl,
     })
     .from(activities)
     .where(eq(activities.id, activityId))
@@ -225,12 +230,33 @@ export async function updateAdminActivity(
     day.dayRate,
   );
 
+  let nextPhotoUrl = existing.photoUrl;
+
+  if (input.photo) {
+    validateActivityPhoto(input.photo);
+
+    if (!appConfig.blobReadWriteToken) {
+      throw new ActivityError(
+        "Photo storage is not configured. Add blobReadWriteToken to src/config.ts.",
+        500,
+      );
+    }
+
+    const extension =
+      input.photo.type.split("/")[1]?.replace("jpeg", "jpg") ?? "jpg";
+    const pathname = `activities/${existing.userId}/${nextDate}-${Date.now()}.${extension}`;
+    const uploaded = await uploadBlob(pathname, input.photo, input.photo.type);
+    nextPhotoUrl = uploaded.url;
+    await deleteBlobUrl(existing.photoUrl);
+  }
+
   const updates: {
     activityDate: string;
     steps: number;
     distanceKm: string;
     basePoints: number;
     status: string;
+    photoUrl: string;
     editedBy: string;
     updatedAt: Date;
     adminNote?: string | null;
@@ -240,6 +266,7 @@ export async function updateAdminActivity(
     distanceKm: nextDistanceKm,
     basePoints: nextBasePoints,
     status: nextStatus,
+    photoUrl: nextPhotoUrl,
     editedBy: adminUserId,
     updatedAt: new Date(),
   };

@@ -107,7 +107,7 @@ export class ActivityError extends Error {
   }
 }
 
-function validateActivityPhoto(file: File) {
+export function validateActivityPhoto(file: File) {
   if (file.size === 0) {
     throw new ActivityError("Photo is required.", 400);
   }

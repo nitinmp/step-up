@@ -312,6 +312,55 @@ export function AdminPanel({
     router.refresh();
   }
 
+  async function patchActivityEdit(
+    id: string,
+    input: {
+      steps: number;
+      distanceKm: string;
+      activityDate: string;
+      photo?: File | null;
+    },
+    successMessage: string,
+  ) {
+    setBusyId(id);
+    setError(null);
+    setMessage(null);
+
+    const formData = new FormData();
+    formData.append("steps", String(input.steps));
+    formData.append("distanceKm", input.distanceKm);
+    formData.append("activityDate", input.activityDate);
+    if (input.photo) {
+      formData.append("photo", input.photo);
+    }
+
+    const response = await fetch(`/api/admin/activities/${id}`, {
+      method: "PATCH",
+      body: formData,
+    });
+
+    const payload = (await response.json()) as {
+      error?: string;
+      pointsDelta?: number;
+    };
+
+    setBusyId(null);
+
+    if (!response.ok) {
+      setError(payload.error ?? "Update failed.");
+      return;
+    }
+
+    const delta =
+      typeof payload.pointsDelta === "number" && payload.pointsDelta !== 0
+        ? ` (${payload.pointsDelta > 0 ? "+" : ""}${payload.pointsDelta} pts)`
+        : "";
+
+    setMessage(`${successMessage}${delta}`);
+    await refreshActivities();
+    router.refresh();
+  }
+
   async function updateParticipantProfile(
     user: AdminUserRow,
     input: {
@@ -640,10 +689,15 @@ export function AdminPanel({
           onApprove={(row) =>
             patchActivity(row.id, { status: "approved" }, "Activity approved")
           }
-          onEdit={(row, steps, distanceKm, activityDate) =>
-            patchActivity(
+          onEdit={(row, steps, distanceKm, activityDate, photo) =>
+            patchActivityEdit(
               row.id,
-              { steps: Number(steps), distanceKm, activityDate },
+              {
+                steps: Number(steps),
+                distanceKm,
+                activityDate,
+                photo,
+              },
               "Activity updated",
             )
           }
@@ -701,7 +755,13 @@ function ActivitiesTab({
   onPreviewPhoto: (url: string) => void;
   onApprove: (row: AdminActivityRow) => void;
   onDisapprove: (row: AdminActivityRow, note: string) => void;
-  onEdit: (row: AdminActivityRow, steps: string, distanceKm: string, activityDate: string) => void;
+  onEdit: (
+    row: AdminActivityRow,
+    steps: string,
+    distanceKm: string,
+    activityDate: string,
+    photo?: File | null,
+  ) => void;
   busyId: string | null;
 }) {
   return (
@@ -722,8 +782,8 @@ function ActivitiesTab({
             key={row.id}
             onApprove={() => onApprove(row)}
             onDisapprove={(note) => onDisapprove(row, note)}
-            onEdit={(steps, distanceKm, activityDate) =>
-              onEdit(row, steps, distanceKm, activityDate)
+            onEdit={(steps, distanceKm, activityDate, photo) =>
+              onEdit(row, steps, distanceKm, activityDate, photo)
             }
             onPreviewPhoto={() => onPreviewPhoto(photoProxyUrl(row.photoUrl))}
             reviewTab={reviewTab}
@@ -751,7 +811,12 @@ function ActivityAdminCard({
   onPreviewPhoto: () => void;
   onApprove: () => void;
   onDisapprove: (note: string) => void;
-  onEdit: (steps: string, distanceKm: string, activityDate: string) => void;
+  onEdit: (
+    steps: string,
+    distanceKm: string,
+    activityDate: string,
+    photo?: File | null,
+  ) => void;
   busy: boolean;
 }) {
   const [editing, setEditing] = useState(false);
@@ -759,6 +824,48 @@ function ActivityAdminCard({
   const [distanceKm, setDistanceKm] = useState(String(Number(row.distanceKm)));
   const [activityDate, setActivityDate] = useState(row.activityDate);
   const [note, setNote] = useState(row.adminNote ?? "");
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+
+  function resetEditForm() {
+    setSteps(String(row.steps));
+    setDistanceKm(String(Number(row.distanceKm)));
+    setActivityDate(row.activityDate);
+    setPhotoFile(null);
+    setPhotoPreview(null);
+  }
+
+  function openEdit() {
+    resetEditForm();
+    setEditing(true);
+  }
+
+  function closeEdit() {
+    if (photoPreview?.startsWith("blob:")) {
+      URL.revokeObjectURL(photoPreview);
+    }
+    resetEditForm();
+    setEditing(false);
+  }
+
+  function handlePhotoChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+
+    if (photoPreview?.startsWith("blob:")) {
+      URL.revokeObjectURL(photoPreview);
+    }
+
+    if (!file) {
+      setPhotoFile(null);
+      setPhotoPreview(null);
+      return;
+    }
+
+    setPhotoFile(file);
+    setPhotoPreview(URL.createObjectURL(file));
+  }
+
+  const editPhotoSrc = photoPreview ?? photoProxyUrl(row.photoUrl);
 
   return (
     <article className="rounded-2xl border border-black/5 bg-surface p-3">
@@ -843,25 +950,47 @@ function ActivityAdminCard({
               value={activityDate}
             />
           </label>
+          <label className="block space-y-1 text-sm sm:col-span-2">
+            <span className="font-medium text-foreground">Photo</span>
+            <p className="text-xs text-muted">
+              Upload a new screenshot to replace the current proof photo.
+            </p>
+            <input
+              accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.jpg,.jpeg,.png,.webp,.heic,.heif"
+              className="w-full rounded-2xl border border-dashed border-black/15 bg-background px-4 py-3 text-sm"
+              onChange={handlePhotoChange}
+              type="file"
+            />
+            <div className="overflow-hidden rounded-2xl border border-black/10">
+              <Image
+                alt={`Proof preview for ${row.userName}`}
+                className="h-48 w-full object-cover"
+                height={192}
+                src={editPhotoSrc}
+                unoptimized
+                width={400}
+              />
+            </div>
+          </label>
           <div className="flex gap-2 sm:col-span-2">
             <ActionButton
               disabled={busy}
               onClick={() => {
-                onEdit(steps, distanceKm, activityDate);
-                setEditing(false);
+                onEdit(steps, distanceKm, activityDate, photoFile);
+                closeEdit();
               }}
               variant="primary"
             >
               Save edit
             </ActionButton>
-            <ActionButton onClick={() => setEditing(false)} variant="ghost">
+            <ActionButton onClick={closeEdit} variant="ghost">
               Cancel
             </ActionButton>
           </div>
         </div>
       ) : (
         <div className="mt-4 flex flex-wrap gap-2">
-          <ActionButton disabled={busy} onClick={() => setEditing(true)} variant="ghost">
+          <ActionButton disabled={busy} onClick={openEdit} variant="ghost">
             Edit
           </ActionButton>
           {reviewTab === "approved" ? (

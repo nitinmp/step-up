@@ -1,3 +1,4 @@
+import { BlobError } from "@vercel/blob";
 import { NextResponse } from "next/server";
 
 import { requireAdminSession } from "@/lib/admin-auth";
@@ -7,6 +8,63 @@ import { ActivityError } from "@/lib/activities-service";
 type RouteContext = {
   params: Promise<{ id: string }>;
 };
+
+type UpdateBody = {
+  status?: "approved" | "disapproved";
+  adminNote?: string | null;
+  steps?: number;
+  distanceKm?: string | number;
+  activityDate?: string;
+  photo?: File;
+};
+
+async function parseUpdateBody(request: Request): Promise<UpdateBody> {
+  const contentType = request.headers.get("content-type") ?? "";
+
+  if (contentType.includes("multipart/form-data")) {
+    const formData = await request.formData();
+    const photoEntry = formData.get("photo");
+    const stepsRaw = formData.get("steps");
+    const distanceKmRaw = formData.get("distanceKm");
+    const activityDateRaw = formData.get("activityDate");
+    const statusRaw = formData.get("status");
+    const adminNoteRaw = formData.get("adminNote");
+
+    const body: UpdateBody = {};
+
+    if (typeof stepsRaw === "string" && stepsRaw !== "") {
+      body.steps = Number(stepsRaw);
+    }
+
+    if (typeof distanceKmRaw === "string" && distanceKmRaw !== "") {
+      body.distanceKm = distanceKmRaw;
+    }
+
+    if (typeof activityDateRaw === "string" && activityDateRaw !== "") {
+      body.activityDate = activityDateRaw;
+    }
+
+    if (statusRaw === "approved" || statusRaw === "disapproved") {
+      body.status = statusRaw;
+    }
+
+    if (typeof adminNoteRaw === "string") {
+      body.adminNote = adminNoteRaw === "" ? null : adminNoteRaw;
+    }
+
+    if (photoEntry instanceof File && photoEntry.size > 0) {
+      body.photo = photoEntry;
+    }
+
+    return body;
+  }
+
+  try {
+    return (await request.json()) as UpdateBody;
+  } catch {
+    throw new ActivityError("Invalid request body.", 400);
+  }
+}
 
 export async function PATCH(request: Request, context: RouteContext) {
   const authResult = await requireAdminSession();
@@ -19,21 +77,8 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   const { id } = await context.params;
 
-  let body: {
-    status?: "approved" | "disapproved";
-    adminNote?: string | null;
-    steps?: number;
-    distanceKm?: string | number;
-    activityDate?: string;
-  };
-
   try {
-    body = (await request.json()) as typeof body;
-  } catch {
-    return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
-  }
-
-  try {
+    const body = await parseUpdateBody(request);
     const result = await updateAdminActivity(
       id,
       authResult.session.user.id,
@@ -50,6 +95,10 @@ export async function PATCH(request: Request, context: RouteContext) {
   } catch (error) {
     if (error instanceof ActivityError) {
       return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+
+    if (error instanceof BlobError) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     console.error(error);
