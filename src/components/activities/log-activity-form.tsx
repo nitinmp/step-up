@@ -4,6 +4,8 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
+import type { EditActivityContext } from "@/lib/activities-service";
+import { photoProxyUrl } from "@/lib/blob-storage";
 import { fireActivityLogConfetti } from "@/lib/confetti";
 import { formatDisplayDate } from "@/lib/dates";
 import { parseDistanceKm } from "@/lib/distance";
@@ -15,11 +17,12 @@ type SelectableDay = {
 };
 
 type LogActivityFormProps = {
-  defaultDate: string;
-  selectableDays: SelectableDay[];
-  loggedDates: string[];
-  challengeStartDate: string;
-  allowOpenChallengeLogging: boolean;
+  defaultDate?: string;
+  selectableDays?: SelectableDay[];
+  loggedDates?: string[];
+  challengeStartDate?: string;
+  allowOpenChallengeLogging?: boolean;
+  editActivity?: EditActivityContext;
 };
 
 type SubmitResult = {
@@ -34,6 +37,7 @@ type SubmitResult = {
     weekStar: number;
     consistency: number;
   } | null;
+  mode: "create" | "edit";
 };
 
 async function compressImage(file: File): Promise<File> {
@@ -71,19 +75,34 @@ async function compressImage(file: File): Promise<File> {
   });
 }
 
-export function LogActivityForm({
-  defaultDate,
-  selectableDays,
-  loggedDates,
-  challengeStartDate,
-  allowOpenChallengeLogging,
-}: LogActivityFormProps) {
+export function LogActivityForm(props: LogActivityFormProps) {
   const router = useRouter();
+  const isEdit = Boolean(props.editActivity);
+  const editActivity = props.editActivity;
+
+  const defaultDate = editActivity?.activityDate ?? props.defaultDate ?? "";
+  const selectableDays = editActivity
+    ? [editActivity.day]
+    : (props.selectableDays ?? []);
+  const loggedDates = props.loggedDates ?? [];
+  const challengeStartDate =
+    editActivity?.challengeStartDate ?? props.challengeStartDate ?? "";
+  const allowOpenChallengeLogging =
+    editActivity?.allowOpenChallengeLogging ??
+    props.allowOpenChallengeLogging ??
+    false;
+
   const [date, setDate] = useState(defaultDate);
-  const [steps, setSteps] = useState("");
-  const [distanceKm, setDistanceKm] = useState("");
+  const [steps, setSteps] = useState(
+    editActivity ? String(editActivity.steps) : "",
+  );
+  const [distanceKm, setDistanceKm] = useState(
+    editActivity ? editActivity.distanceKm : "",
+  );
   const [photo, setPhoto] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(
+    editActivity ? photoProxyUrl(editActivity.photoUrl) : null,
+  );
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<SubmitResult | null>(null);
@@ -95,8 +114,10 @@ export function LogActivityForm({
     [date, selectableDays],
   );
 
+  const hasPhoto = Boolean(photo || editActivity?.photoUrl);
+
   useEffect(() => {
-    if (result) {
+    if (result && result.mode === "create") {
       fireActivityLogConfetti();
     }
   }, [result]);
@@ -107,7 +128,9 @@ export function LogActivityForm({
 
     if (!file) {
       setPhoto(null);
-      setPreviewUrl(null);
+      setPreviewUrl(
+        editActivity ? photoProxyUrl(editActivity.photoUrl) : null,
+      );
       return;
     }
 
@@ -120,14 +143,14 @@ export function LogActivityForm({
     event.preventDefault();
     setError(null);
 
-    if (loggedDateSet.has(date)) {
+    if (!isEdit && loggedDateSet.has(date)) {
       setError(
         "You already logged activity for this day. Each participant can log once per day.",
       );
       return;
     }
 
-    if (!photo) {
+    if (!photo && !editActivity?.photoUrl) {
       setError("Attach a photo before logging activity.");
       return;
     }
@@ -161,9 +184,50 @@ export function LogActivityForm({
     setLoading(true);
 
     const formData = new FormData();
-    formData.append("date", date);
     formData.append("steps", steps);
     formData.append("distanceKm", distanceKm);
+
+    if (isEdit && editActivity) {
+      if (photo) {
+        formData.append("photo", photo);
+      }
+
+      const response = await fetch(`/api/activities/${editActivity.activityId}`, {
+        method: "PATCH",
+        body: formData,
+      });
+
+      const payload = (await response.json()) as {
+        basePoints?: number;
+        isBeast?: boolean;
+        error?: string;
+      };
+      setLoading(false);
+
+      if (!response.ok) {
+        setError(payload.error ?? "Could not save activity.");
+        return;
+      }
+
+      setResult({
+        basePoints: payload.basePoints ?? 0,
+        isStarOfDay: false,
+        isBeast: payload.isBeast ?? false,
+        total: null,
+        rank: null,
+        breakdown: null,
+        mode: "edit",
+      });
+      return;
+    }
+
+    if (!photo) {
+      setLoading(false);
+      setError("Attach a photo before logging activity.");
+      return;
+    }
+
+    formData.append("date", date);
     formData.append("photo", photo);
 
     const response = await fetch("/api/activities", {
@@ -186,10 +250,35 @@ export function LogActivityForm({
       total: payload.total,
       rank: payload.rank,
       breakdown: payload.breakdown ?? null,
+      mode: "create",
     });
   }
 
   if (result) {
+    if (result.mode === "edit") {
+      return (
+        <section className="rounded-3xl border border-black/5 bg-surface p-6">
+          <p className="text-sm uppercase tracking-[0.2em] text-brand">Updated</p>
+          <h1 className="mt-2 text-3xl font-semibold text-foreground">
+            +{result.basePoints} base points
+          </h1>
+          {result.isBeast ? (
+            <p className="mt-2 font-medium text-foreground">🔥 Beast Mode unlocked</p>
+          ) : null}
+          <p className="mt-4 text-sm text-muted">
+            Your changes were saved and submitted for admin review again.
+          </p>
+          <button
+            className="mt-6 w-full rounded-2xl bg-brand px-4 py-3 text-base font-semibold text-white"
+            onClick={() => router.push("/activities")}
+            type="button"
+          >
+            View activities
+          </button>
+        </section>
+      );
+    }
+
     const bonusPoints =
       (result.breakdown?.starDay ?? 0) +
       (result.breakdown?.weekStar ?? 0) +
@@ -244,13 +333,13 @@ export function LogActivityForm({
     );
   }
 
-  if (selectableDays.length === 0) {
+  if (!isEdit && selectableDays.length === 0) {
     return (
       <section className="rounded-3xl border border-black/5 bg-surface p-6">
         <h1 className="text-2xl font-semibold text-foreground">Log activity</h1>
         <p className="mt-3 text-muted">
           {loggedDates.length > 0
-            ? "You have already logged every available day. Each participant can log once per day — ask an admin to edit an entry if needed."
+            ? "You have already logged every available day. Each participant can log once per day — edit a pending entry from Activities if needed."
             : allowOpenChallengeLogging
               ? "No challenge days are available to log right now."
               : `You can only log activity for today. Logging opens on ${formatDisplayDate(challengeStartDate)} if the challenge has not started yet.`}
@@ -261,28 +350,42 @@ export function LogActivityForm({
 
   return (
     <section className="rounded-3xl border border-black/5 bg-surface p-6">
-      <h1 className="text-2xl font-semibold text-foreground">Log activity</h1>
+      <h1 className="text-2xl font-semibold text-foreground">
+        {isEdit ? "Edit activity" : "Log activity"}
+      </h1>
       <p className="mt-2 text-sm text-muted">
-        One entry per day. Add steps and distance from your fitness app screenshot.
+        {isEdit
+          ? "Update steps, distance, or screenshot while your entry is awaiting approval."
+          : "One entry per day. Add steps and distance from your fitness app screenshot."}
       </p>
 
       <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
-        <label className="block space-y-2">
-          <span className="text-sm font-medium text-foreground">Date</span>
-          <select
-            className="field-input"
-            onChange={(event) => setDate(event.target.value)}
-            required
-            value={date}
-          >
-            {selectableDays.map((day) => (
-              <option key={day.date} value={day.date}>
-                {formatDisplayDate(day.date)} · W{day.weekNo} · target{" "}
-                {day.targetSteps.toLocaleString("en-IN")}
-              </option>
-            ))}
-          </select>
-        </label>
+        {isEdit && selectedDay ? (
+          <div className="block space-y-2">
+            <span className="text-sm font-medium text-foreground">Date</span>
+            <p className="field-input bg-background text-foreground">
+              {formatDisplayDate(selectedDay.date)} · W{selectedDay.weekNo} · target{" "}
+              {selectedDay.targetSteps.toLocaleString("en-IN")}
+            </p>
+          </div>
+        ) : (
+          <label className="block space-y-2">
+            <span className="text-sm font-medium text-foreground">Date</span>
+            <select
+              className="field-input"
+              onChange={(event) => setDate(event.target.value)}
+              required
+              value={date}
+            >
+              {selectableDays.map((day) => (
+                <option key={day.date} value={day.date}>
+                  {formatDisplayDate(day.date)} · W{day.weekNo} · target{" "}
+                  {day.targetSteps.toLocaleString("en-IN")}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
 
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="block space-y-2">
@@ -319,13 +422,15 @@ export function LogActivityForm({
         <label className="block space-y-2">
           <span className="text-sm font-medium text-foreground">Photo</span>
           <p className="text-xs text-muted">
-            Choose a screenshot from your fitness app (photo library).
+            {isEdit
+              ? "Choose a new screenshot to replace the current one, or keep the photo already attached."
+              : "Choose a screenshot from your fitness app (photo library)."}
           </p>
           <input
             accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.jpg,.jpeg,.png,.webp,.heic,.heif"
             className="w-full rounded-2xl border border-dashed border-black/15 bg-background px-4 py-3 text-sm"
             onChange={handlePhotoChange}
-            required
+            required={!isEdit}
             type="file"
           />
           {previewUrl ? (
@@ -350,10 +455,16 @@ export function LogActivityForm({
 
         <button
           className="w-full rounded-2xl bg-brand px-4 py-3 text-base font-semibold text-white transition hover:bg-brand-dark disabled:opacity-60"
-          disabled={loading || !photo}
+          disabled={loading || !hasPhoto}
           type="submit"
         >
-          {loading ? "Uploading…" : "Log activity"}
+          {loading
+            ? isEdit
+              ? "Saving…"
+              : "Uploading…"
+            : isEdit
+              ? "Save changes"
+              : "Log activity"}
         </button>
       </form>
     </section>

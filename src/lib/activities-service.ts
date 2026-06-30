@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 
 import { appConfig } from "@/config";
-import { uploadBlob } from "@/lib/blob-storage";
+import { uploadBlob, deleteBlobUrl } from "@/lib/blob-storage";
 import { getDb } from "@/db";
 import {
   activities,
@@ -105,6 +105,45 @@ export class ActivityError extends Error {
     super(message);
     this.status = status;
   }
+}
+
+function validateActivityPhoto(file: File) {
+  if (file.size === 0) {
+    throw new ActivityError("Photo is required.", 400);
+  }
+
+  if (file.size > MAX_IMAGE_BYTES) {
+    throw new ActivityError("Photo must be 5 MB or smaller.", 400);
+  }
+
+  if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
+    throw new ActivityError("Photo must be JPG, PNG, or WebP.", 400);
+  }
+}
+
+function validateActivityMetrics(
+  steps: number,
+  distanceKmInput: string | number,
+) {
+  if (!Number.isInteger(steps) || steps <= 0) {
+    throw new ActivityError("Steps must be a whole number greater than 0.", 400);
+  }
+
+  let distanceKm: number;
+  try {
+    distanceKm = parseDistanceKm(distanceKmInput);
+  } catch (error) {
+    throw new ActivityError(
+      error instanceof Error ? error.message : "Invalid distance.",
+      400,
+    );
+  }
+
+  if (distanceKm <= 0) {
+    throw new ActivityError("Distance must be greater than 0 km.", 400);
+  }
+
+  return distanceKm;
 }
 
 export async function getChallengeWindow() {
@@ -329,6 +368,65 @@ export async function getLogContext(userId: string) {
   };
 }
 
+export type EditActivityContext = {
+  activityId: string;
+  activityDate: string;
+  steps: number;
+  distanceKm: string;
+  photoUrl: string;
+  day: ChallengeDayRow;
+  challengeStartDate: string;
+  allowOpenChallengeLogging: boolean;
+};
+
+export async function getEditActivityContext(
+  userId: string,
+  activityId: string,
+): Promise<EditActivityContext | null> {
+  const db = getDb();
+  const { config, days } = await getChallengeWindow();
+
+  const [activity] = await db
+    .select({
+      id: activities.id,
+      activityDate: activities.activityDate,
+      steps: activities.steps,
+      distanceKm: activities.distanceKm,
+      photoUrl: activities.photoUrl,
+      status: activities.status,
+    })
+    .from(activities)
+    .where(and(eq(activities.id, activityId), eq(activities.userId, userId)))
+    .limit(1);
+
+  if (!activity) {
+    return null;
+  }
+
+  if (activity.status !== "pending") {
+    throw new ActivityError(
+      "Only activities awaiting approval can be edited.",
+      403,
+    );
+  }
+
+  const day = days.find((entry) => entry.date === activity.activityDate);
+  if (!day) {
+    throw new ActivityError("Invalid challenge date.", 400);
+  }
+
+  return {
+    activityId: activity.id,
+    activityDate: activity.activityDate,
+    steps: activity.steps,
+    distanceKm: activity.distanceKm,
+    photoUrl: activity.photoUrl,
+    day,
+    challengeStartDate: config.startDate,
+    allowOpenChallengeLogging: appConfig.allowOpenChallengeLogging,
+  };
+}
+
 export async function createActivity(input: {
   userId: string;
   activityDate: string;
@@ -357,35 +455,10 @@ export async function createActivity(input: {
     throw new ActivityError("You can only log activity for today.", 400);
   }
 
-  if (!Number.isInteger(input.steps) || input.steps <= 0) {
-    throw new ActivityError("Steps must be a whole number greater than 0.", 400);
-  }
+  const stepsValue = input.steps;
+  const distanceKm = validateActivityMetrics(stepsValue, input.distanceKm);
 
-  let distanceKm: number;
-  try {
-    distanceKm = parseDistanceKm(input.distanceKm);
-  } catch (error) {
-    throw new ActivityError(
-      error instanceof Error ? error.message : "Invalid distance.",
-      400,
-    );
-  }
-
-  if (distanceKm <= 0) {
-    throw new ActivityError("Distance must be greater than 0 km.", 400);
-  }
-
-  if (!input.photo || input.photo.size === 0) {
-    throw new ActivityError("Photo is required.", 400);
-  }
-
-  if (input.photo.size > MAX_IMAGE_BYTES) {
-    throw new ActivityError("Photo must be 5 MB or smaller.", 400);
-  }
-
-  if (!ALLOWED_IMAGE_TYPES.has(input.photo.type)) {
-    throw new ActivityError("Photo must be JPG, PNG, or WebP.", 400);
-  }
+  validateActivityPhoto(input.photo);
 
   if (!appConfig.blobReadWriteToken) {
     throw new ActivityError(
@@ -419,7 +492,7 @@ export async function createActivity(input: {
   const uploaded = await uploadBlob(pathname, input.photo, input.photo.type);
 
   const basePoints = computeBasePoints(
-    input.steps,
+    stepsValue,
     day.targetSteps,
     day.dayRate,
   );
@@ -429,7 +502,7 @@ export async function createActivity(input: {
     .values({
       userId: input.userId,
       activityDate: input.activityDate,
-      steps: input.steps,
+      steps: stepsValue,
       distanceKm: distanceKmToStorage(distanceKm),
       photoUrl: uploaded.url,
       status: "pending",
@@ -466,10 +539,121 @@ export async function createActivity(input: {
     day,
     isStarOfDay: starOfDayKeys.has(`${input.activityDate}:${input.userId}`),
     isBeast: isBeastMode(
-      input.steps,
+      stepsValue,
       day.targetSteps,
       config.beastMultiplier,
     ),
     standing: getStandingForUser(standings, input.userId),
+  };
+}
+
+export async function updatePendingActivity(input: {
+  activityId: string;
+  userId: string;
+  steps: number;
+  distanceKm: string | number;
+  photo?: File | null;
+}) {
+  const db = getDb();
+  const { config } = await getChallengeWindow();
+
+  const [existing] = await db
+    .select({
+      id: activities.id,
+      userId: activities.userId,
+      activityDate: activities.activityDate,
+      steps: activities.steps,
+      distanceKm: activities.distanceKm,
+      photoUrl: activities.photoUrl,
+      status: activities.status,
+    })
+    .from(activities)
+    .where(and(eq(activities.id, input.activityId), eq(activities.userId, input.userId)))
+    .limit(1);
+
+  if (!existing) {
+    throw new ActivityError("Activity not found.", 404);
+  }
+
+  if (existing.status !== "pending") {
+    throw new ActivityError(
+      "Only activities awaiting approval can be edited.",
+      403,
+    );
+  }
+
+  const [day] = await db
+    .select({
+      date: challengeDay.date,
+      weekNo: challengeDay.weekNo,
+      targetSteps: challengeDay.targetSteps,
+      dayRate: challengeDay.dayRate,
+    })
+    .from(challengeDay)
+    .where(eq(challengeDay.date, existing.activityDate))
+    .limit(1);
+
+  if (!day) {
+    throw new ActivityError("Invalid challenge date.", 400);
+  }
+
+  const stepsValue = input.steps;
+  const distanceKm = validateActivityMetrics(stepsValue, input.distanceKm);
+
+  if (input.photo) {
+    validateActivityPhoto(input.photo);
+  }
+
+  if (!appConfig.blobReadWriteToken) {
+    throw new ActivityError(
+      "Photo storage is not configured. Add blobReadWriteToken to src/config.ts.",
+      500,
+    );
+  }
+
+  let nextPhotoUrl = existing.photoUrl;
+
+  if (input.photo) {
+    const extension =
+      input.photo.type.split("/")[1]?.replace("jpeg", "jpg") ?? "jpg";
+    const pathname = `activities/${input.userId}/${existing.activityDate}-${Date.now()}.${extension}`;
+    const uploaded = await uploadBlob(pathname, input.photo, input.photo.type);
+    nextPhotoUrl = uploaded.url;
+    await deleteBlobUrl(existing.photoUrl);
+  }
+
+  const basePoints = computeBasePoints(
+    stepsValue,
+    day.targetSteps,
+    day.dayRate,
+  );
+
+  const [updated] = await db
+    .update(activities)
+    .set({
+      steps: stepsValue,
+      distanceKm: distanceKmToStorage(distanceKm),
+      photoUrl: nextPhotoUrl,
+      basePoints,
+      status: "pending",
+      adminNote: null,
+      editedBy: input.userId,
+      updatedAt: new Date(),
+    })
+    .where(eq(activities.id, existing.id))
+    .returning({
+      id: activities.id,
+      activityDate: activities.activityDate,
+      steps: activities.steps,
+      distanceKm: activities.distanceKm,
+      basePoints: activities.basePoints,
+      status: activities.status,
+      photoUrl: activities.photoUrl,
+    });
+
+  return {
+    activity: updated!,
+    day,
+    isBeast: isBeastMode(stepsValue, day.targetSteps, config.beastMultiplier),
   };
 }

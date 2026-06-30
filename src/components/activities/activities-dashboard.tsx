@@ -180,11 +180,12 @@ export function ActivityLogList({ activities }: ActivityLogListProps) {
 
 function ActivityLogRow({ day }: { day: LoggedActivityDay }) {
   const activity = day.activity;
+  const canEdit = activity.status === "pending";
 
   return (
     <article className="rounded-3xl border border-black/5 bg-surface p-4">
       <div className="flex items-start justify-between gap-3">
-        <div>
+        <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <p className="font-medium text-foreground">
               {formatDisplayDate(day.date)}
@@ -219,6 +220,17 @@ function ActivityLogRow({ day }: { day: LoggedActivityDay }) {
           )}
         </div>
       </div>
+
+      {canEdit ? (
+        <div className="mt-3 flex justify-end">
+          <Link
+            className="inline-flex rounded-full border border-brand/20 px-4 py-2 text-sm font-medium text-brand transition hover:bg-brand/5"
+            href={`/log?edit=${activity.id}`}
+          >
+            Edit
+          </Link>
+        </div>
+      ) : null}
 
       {day.state === "disapproved" && activity.adminNote ? (
         <p className="mt-3 rounded-2xl bg-danger/10 px-3 py-2 text-sm text-danger">
