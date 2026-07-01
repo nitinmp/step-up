@@ -69,4 +69,29 @@ export function isLoggableChallengeDate(
   return date === getTodayDateString(timezone);
 }
 
+/** Today and the previous `lookbackDays` calendar dates (default: 3-day window). */
+export function getAdminLoggableDateCandidates(
+  today: string,
+  lookbackDays = 2,
+): string[] {
+  const dates: string[] = [];
+  for (let offset = 0; offset <= lookbackDays; offset += 1) {
+    dates.push(addDaysToDateString(today, -offset));
+  }
+  return dates;
+}
+
+export function isAdminLoggableDate(
+  date: string,
+  today: string,
+  startDate: string,
+  endDate: string,
+  lookbackDays = 2,
+): boolean {
+  return (
+    getAdminLoggableDateCandidates(today, lookbackDays).includes(date) &&
+    isDateWithinRange(date, startDate, endDate)
+  );
+}
+
 export { IST_TIMEZONE };

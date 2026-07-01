@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { isLoggableChallengeDate } from "../src/lib/dates";
+import {
+  getAdminLoggableDateCandidates,
+  isAdminLoggableDate,
+  isLoggableChallengeDate,
+} from "../src/lib/dates";
 
 const window = { startDate: "2026-06-01", endDate: "2026-06-29" };
 
@@ -50,5 +54,30 @@ describe("isLoggableChallengeDate", () => {
 
     assert.equal(todayOnly, false);
     assert.equal(today, true);
+  });
+});
+
+describe("isAdminLoggableDate", () => {
+  it("allows today and the previous two in-window days", () => {
+    const today = "2026-06-30";
+    const candidates = getAdminLoggableDateCandidates(today, 2);
+
+    assert.deepEqual(candidates, ["2026-06-30", "2026-06-29", "2026-06-28"]);
+    assert.equal(
+      isAdminLoggableDate("2026-06-30", today, "2026-06-01", "2026-07-27"),
+      true,
+    );
+    assert.equal(
+      isAdminLoggableDate("2026-06-29", today, "2026-06-01", "2026-07-27"),
+      true,
+    );
+    assert.equal(
+      isAdminLoggableDate("2026-06-28", today, "2026-06-01", "2026-07-27"),
+      true,
+    );
+    assert.equal(
+      isAdminLoggableDate("2026-06-27", today, "2026-06-01", "2026-07-27"),
+      false,
+    );
   });
 });

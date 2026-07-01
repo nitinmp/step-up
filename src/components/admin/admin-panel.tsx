@@ -16,7 +16,7 @@ import type {
 import type { Division, Gender } from "@/lib/divisions";
 import { cn } from "@/lib/cn";
 import { photoProxyUrl } from "@/lib/blob-storage";
-import { formatDisplayDate } from "@/lib/dates";
+import { addDaysToDateString, formatDisplayDate } from "@/lib/dates";
 import { formatDistanceKm } from "@/lib/distance";
 import { DEFAULT_PARTICIPANT_PASSWORD } from "@/lib/default-password";
 import type { UserStanding } from "@/lib/standings";
@@ -179,6 +179,15 @@ export function AdminPanel({
       challengeDays.filter((day) => day.date < initialScoring.calendarToday),
     [challengeDays, initialScoring.calendarToday],
   );
+  const adminLoggableDays = useMemo(() => {
+    const today = initialScoring.calendarToday;
+    const allowed = new Set([
+      today,
+      addDaysToDateString(today, -1),
+      addDaysToDateString(today, -2),
+    ]);
+    return challengeDays.filter((day) => allowed.has(day.date));
+  }, [challengeDays, initialScoring.calendarToday]);
   const weekOptions = useMemo(() => {
     const weekNos = [...new Set(challengeDays.map((day) => day.weekNo))].sort(
       (a, b) => a - b,
@@ -200,6 +209,7 @@ export function AdminPanel({
   const [divisionFilter, setDivisionFilter] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [addParticipantOpen, setAddParticipantOpen] = useState(false);
+  const [logForParticipantOpen, setLogForParticipantOpen] = useState(false);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -571,6 +581,52 @@ export function AdminPanel({
     router.refresh();
   }
 
+  async function createParticipantActivity(input: {
+    userId: string;
+    activityDate: string;
+    steps: string;
+    distanceKm: string;
+    photo: File;
+  }): Promise<boolean> {
+    setBusyId("create-activity");
+    setError(null);
+    setMessage(null);
+
+    const formData = new FormData();
+    formData.append("userId", input.userId);
+    formData.append("activityDate", input.activityDate);
+    formData.append("steps", input.steps);
+    formData.append("distanceKm", input.distanceKm);
+    formData.append("photo", input.photo);
+
+    const response = await fetch("/api/admin/activities", {
+      method: "POST",
+      body: formData,
+    });
+
+    const payload = (await response.json()) as {
+      error?: string;
+      userName?: string;
+      activityDate?: string;
+      basePoints?: number;
+    };
+
+    setBusyId(null);
+
+    if (!response.ok) {
+      setError(payload.error ?? "Could not create activity.");
+      return false;
+    }
+
+    setMessage(
+      `${payload.userName ?? "Participant"} · ${formatDisplayDate(payload.activityDate ?? input.activityDate)} logged (+${payload.basePoints ?? 0} base pts).`,
+    );
+    setLogForParticipantOpen(false);
+    await refreshActivities();
+    router.refresh();
+    return true;
+  }
+
   async function resetParticipantPassword(user: AdminUserRow) {
     setBusyId(user.id);
     setError(null);
@@ -679,6 +735,10 @@ export function AdminPanel({
           activities={filteredActivities}
           busyId={busyId}
           challengeDays={challengeDays}
+          logForParticipantOpen={logForParticipantOpen}
+          loggableDays={adminLoggableDays}
+          onCreateActivity={createParticipantActivity}
+          onLogForParticipantOpenChange={setLogForParticipantOpen}
           onDisapprove={(row, note) =>
             patchActivity(
               row.id,
@@ -703,6 +763,7 @@ export function AdminPanel({
           }
           onPreviewPhoto={setPhotoPreview}
           reviewTab={adminTab === "review" ? "review" : "approved"}
+          users={participantRows}
         />
       ) : adminTab === "participants" ? (
         <ParticipantsTab
@@ -739,9 +800,233 @@ export function AdminPanel({
   );
 }
 
+function LogForParticipantDrawer({
+  open,
+  onClose,
+  users,
+  loggableDays,
+  onSubmit,
+  busy,
+}: {
+  open: boolean;
+  onClose: () => void;
+  users: AdminUserRow[];
+  loggableDays: ChallengeDayOption[];
+  onSubmit: (input: {
+    userId: string;
+    activityDate: string;
+    steps: string;
+    distanceKm: string;
+    photo: File;
+  }) => Promise<boolean>;
+  busy: boolean;
+}) {
+  const [userId, setUserId] = useState("");
+  const [activityDate, setActivityDate] = useState("");
+  const [steps, setSteps] = useState("");
+  const [distanceKm, setDistanceKm] = useState("");
+  const [photo, setPhoto] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    setUserId("");
+    setSteps("");
+    setDistanceKm("");
+    setPhoto(null);
+    setPhotoPreview((current) => {
+      if (current?.startsWith("blob:")) {
+        URL.revokeObjectURL(current);
+      }
+      return null;
+    });
+    setFormError(null);
+    setActivityDate(loggableDays[0]?.date ?? "");
+  }, [open, loggableDays]);
+
+  function handlePhotoChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    setFormError(null);
+
+    if (photoPreview?.startsWith("blob:")) {
+      URL.revokeObjectURL(photoPreview);
+    }
+
+    if (!file) {
+      setPhoto(null);
+      setPhotoPreview(null);
+      return;
+    }
+
+    setPhoto(file);
+    setPhotoPreview(URL.createObjectURL(file));
+  }
+
+  async function handleSubmit() {
+    setFormError(null);
+
+    if (!userId) {
+      setFormError("Choose a participant.");
+      return;
+    }
+
+    if (!activityDate) {
+      setFormError("Choose a challenge date.");
+      return;
+    }
+
+    if (!photo) {
+      setFormError("Attach a proof photo.");
+      return;
+    }
+
+    if (!Number.isInteger(Number(steps)) || Number(steps) <= 0) {
+      setFormError("Enter a whole number of steps greater than 0.");
+      return;
+    }
+
+    if (Number(distanceKm) <= 0) {
+      setFormError("Enter distance greater than 0 km.");
+      return;
+    }
+
+    const saved = await onSubmit({
+      userId,
+      activityDate,
+      steps,
+      distanceKm,
+      photo,
+    });
+
+    if (!saved) {
+      setFormError("Could not save activity. Check the message above.");
+    }
+  }
+
+  return (
+    <BottomFilterDrawer onClose={onClose} open={open} title="Log for participant">
+      <div className="space-y-4">
+        <p className="text-sm text-muted">
+          Create an approved entry for today or the previous two days when a
+          participant could not log themselves.
+        </p>
+
+        {loggableDays.length === 0 ? (
+          <p className="rounded-xl bg-warning/10 px-3 py-2 text-sm text-warning">
+            No challenge days are available to log right now.
+          </p>
+        ) : (
+          <>
+            <label className="block space-y-1 text-sm">
+              <span className="font-medium text-foreground">Participant</span>
+              <Select
+                onChange={setUserId}
+                options={users.map((user) => ({
+                  value: user.id,
+                  label: `${user.name} · ${user.mobile}`,
+                }))}
+                placeholder="Choose participant"
+                value={userId}
+              />
+            </label>
+
+            <label className="block space-y-1 text-sm">
+              <span className="font-medium text-foreground">Date</span>
+              <Select
+                onChange={setActivityDate}
+                options={loggableDays.map((day) => ({
+                  value: day.date,
+                  label: `${formatDisplayDate(day.date)} · W${day.weekNo} · target ${day.targetSteps.toLocaleString("en-IN")}`,
+                }))}
+                value={activityDate}
+              />
+            </label>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="block space-y-1 text-sm">
+                <span className="font-medium text-foreground">Steps</span>
+                <input
+                  className="field-input"
+                  inputMode="numeric"
+                  onChange={(event) => setSteps(event.target.value)}
+                  placeholder="e.g. 10432"
+                  type="number"
+                  value={steps}
+                />
+              </label>
+              <label className="block space-y-1 text-sm">
+                <span className="font-medium text-foreground">Distance (km)</span>
+                <input
+                  className="field-input"
+                  inputMode="decimal"
+                  onChange={(event) => setDistanceKm(event.target.value)}
+                  placeholder="e.g. 5.43"
+                  step={0.001}
+                  type="number"
+                  value={distanceKm}
+                />
+              </label>
+            </div>
+
+            <label className="block space-y-1 text-sm">
+              <span className="font-medium text-foreground">Photo</span>
+              <input
+                accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.jpg,.jpeg,.png,.webp,.heic,.heif"
+                className="w-full rounded-2xl border border-dashed border-black/15 bg-background px-4 py-3 text-sm"
+                onChange={handlePhotoChange}
+                type="file"
+              />
+              {photoPreview ? (
+                <div className="overflow-hidden rounded-2xl border border-black/10">
+                  <Image
+                    alt="Activity preview"
+                    className="h-48 w-full object-cover"
+                    height={192}
+                    src={photoPreview}
+                    unoptimized
+                    width={400}
+                  />
+                </div>
+              ) : null}
+            </label>
+          </>
+        )}
+
+        {formError ? (
+          <p className="rounded-xl bg-danger/10 px-3 py-2 text-sm text-danger">
+            {formError}
+          </p>
+        ) : null}
+
+        <div className="flex gap-2 pt-1">
+          <ActionButton onClick={onClose} variant="ghost">
+            Cancel
+          </ActionButton>
+          <ActionButton
+            disabled={busy || loggableDays.length === 0}
+            onClick={() => void handleSubmit()}
+            variant="primary"
+          >
+            {busy ? "Saving…" : "Save activity"}
+          </ActionButton>
+        </div>
+      </div>
+    </BottomFilterDrawer>
+  );
+}
+
 function ActivitiesTab({
   activities,
   challengeDays,
+  loggableDays,
+  users,
+  logForParticipantOpen,
+  onLogForParticipantOpenChange,
+  onCreateActivity,
   reviewTab,
   onPreviewPhoto,
   onApprove,
@@ -751,6 +1036,17 @@ function ActivitiesTab({
 }: {
   activities: AdminActivityRow[];
   challengeDays: ChallengeDayOption[];
+  loggableDays: ChallengeDayOption[];
+  users: AdminUserRow[];
+  logForParticipantOpen: boolean;
+  onLogForParticipantOpenChange: (open: boolean) => void;
+  onCreateActivity: (input: {
+    userId: string;
+    activityDate: string;
+    steps: string;
+    distanceKm: string;
+    photo: File;
+  }) => Promise<boolean>;
   reviewTab: "review" | "approved";
   onPreviewPhoto: (url: string) => void;
   onApprove: (row: AdminActivityRow) => void;
@@ -766,6 +1062,25 @@ function ActivitiesTab({
 }) {
   return (
     <section className="space-y-3">
+      <div className="flex justify-end">
+        <ActionButton
+          disabled={loggableDays.length === 0}
+          onClick={() => onLogForParticipantOpenChange(true)}
+          variant="primary"
+        >
+          Log for participant
+        </ActionButton>
+      </div>
+
+      <LogForParticipantDrawer
+        busy={busyId === "create-activity"}
+        loggableDays={loggableDays}
+        onClose={() => onLogForParticipantOpenChange(false)}
+        onSubmit={onCreateActivity}
+        open={logForParticipantOpen}
+        users={users}
+      />
+
       {activities.length === 0 ? (
         <EmptyCard
           text={

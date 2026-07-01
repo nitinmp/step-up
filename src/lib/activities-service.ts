@@ -121,7 +121,7 @@ export function validateActivityPhoto(file: File) {
   }
 }
 
-function validateActivityMetrics(
+export function validateActivityMetrics(
   steps: number,
   distanceKmInput: string | number,
 ) {

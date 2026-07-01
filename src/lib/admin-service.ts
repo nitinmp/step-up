@@ -8,12 +8,15 @@ import {
 } from "@/db/schema";
 import {
   ActivityError,
+  getChallengeWindow,
+  validateActivityMetrics,
   validateActivityPhoto,
 } from "@/lib/activities-service";
 import { deleteBlobUrl, uploadBlob } from "@/lib/blob-storage";
 import { appConfig } from "@/config";
 import type { Division, Gender } from "@/lib/divisions";
 import { isValidGender, parseDivision, parseGender } from "@/lib/divisions";
+import { isAdminLoggableDate } from "@/lib/dates";
 import { distanceKmToStorage, parseDistanceKm } from "@/lib/distance";
 import { DEFAULT_PARTICIPANT_PASSWORD } from "@/lib/default-password";
 import { computeBasePoints } from "@/lib/scoring";
@@ -294,6 +297,106 @@ export async function updateAdminActivity(
     pointsDelta: nextBasePoints - previousBasePoints,
     previousBasePoints,
     nextBasePoints,
+  };
+}
+
+export async function createAdminActivity(
+  adminUserId: string,
+  input: {
+    userId: string;
+    activityDate: string;
+    steps: number;
+    distanceKm: string | number;
+    photo: File;
+  },
+) {
+  const db = getDb();
+  const { config, days, today } = await getChallengeWindow();
+
+  if (
+    !isAdminLoggableDate(
+      input.activityDate,
+      today,
+      config.startDate,
+      config.endDate,
+    )
+  ) {
+    throw new ActivityError(
+      "Admin can only log activity for today and the previous two days.",
+      400,
+    );
+  }
+
+  const day = days.find((entry) => entry.date === input.activityDate);
+  if (!day) {
+    throw new ActivityError("Invalid challenge date.", 400);
+  }
+
+  const [user] = await db
+    .select({ id: users.id, name: users.name })
+    .from(users)
+    .where(eq(users.id, input.userId))
+    .limit(1);
+
+  if (!user) {
+    throw new ActivityError("Participant not found.", 404);
+  }
+
+  const [existing] = await db
+    .select({ id: activities.id })
+    .from(activities)
+    .where(
+      and(
+        eq(activities.userId, input.userId),
+        eq(activities.activityDate, input.activityDate),
+      ),
+    )
+    .limit(1);
+
+  if (existing) {
+    throw new ActivityError(
+      "This participant already has an activity for that date.",
+      409,
+    );
+  }
+
+  const stepsValue = input.steps;
+  const distanceKm = validateActivityMetrics(stepsValue, input.distanceKm);
+  validateActivityPhoto(input.photo);
+
+  if (!appConfig.blobReadWriteToken) {
+    throw new ActivityError(
+      "Photo storage is not configured. Add blobReadWriteToken to src/config.ts.",
+      500,
+    );
+  }
+
+  const extension =
+    input.photo.type.split("/")[1]?.replace("jpeg", "jpg") ?? "jpg";
+  const pathname = `activities/${input.userId}/${input.activityDate}-${Date.now()}.${extension}`;
+  const uploaded = await uploadBlob(pathname, input.photo, input.photo.type);
+
+  const basePoints = computeBasePoints(
+    stepsValue,
+    day.targetSteps,
+    day.dayRate,
+  );
+
+  await db.insert(activities).values({
+    userId: input.userId,
+    activityDate: input.activityDate,
+    steps: stepsValue,
+    distanceKm: distanceKmToStorage(distanceKm),
+    photoUrl: uploaded.url,
+    status: "approved",
+    basePoints,
+    editedBy: adminUserId,
+  });
+
+  return {
+    userName: user.name,
+    activityDate: input.activityDate,
+    basePoints,
   };
 }
 
