@@ -335,11 +335,23 @@ export function computeAchievementStatesForUser(
   });
 }
 
-function hasEarnedTierFromStates(
-  states: UserAchievementState[],
+function hasEarnedTier(
+  userId: string,
+  input: StandingsInput & { today?: string },
   seriesId: BadgeSeriesId,
   tierIndex: number,
+  standingByUser: Map<string, UserStanding>,
+  kmByUser: Map<string, number>,
+  statesByUser?: Map<string, UserAchievementState[]>,
 ): boolean {
+  const states =
+    statesByUser?.get(userId) ??
+    computeAchievementStatesForUser(
+      userId,
+      input,
+      standingByUser.get(userId) ?? null,
+      kmByUser.get(userId) ?? 0,
+    );
   const state = states.find((entry) => entry.seriesId === seriesId);
   return (
     state !== undefined &&
@@ -412,10 +424,14 @@ export function computeAllUserAchievements(
     }
 
     const earners = participantIds.filter((participantId) =>
-      hasEarnedTierFromStates(
-        statesByUser.get(participantId) ?? [],
+      hasEarnedTier(
+        participantId,
+        input,
         achievement.seriesId,
         achievement.earnedTierIndex!,
+        standingByUser,
+        kmByUser,
+        statesByUser,
       ),
     ).length;
 
