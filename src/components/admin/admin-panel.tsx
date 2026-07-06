@@ -758,7 +758,7 @@ export function AdminPanel({
         onUserChange={setUserFilter}
         open={filtersOpen && isApprovedTab}
         userFilter={userFilter}
-        users={users}
+        users={participantRows}
       />
 
       {message ? (
@@ -2464,7 +2464,7 @@ function ActivityFilterDrawer({
       />
       <div
         aria-modal="true"
-        className="animate-sheet-slide-up absolute inset-x-0 bottom-0 mx-auto flex max-h-[min(85vh,640px)] max-w-3xl flex-col rounded-t-3xl bg-surface shadow-[0_-8px_30px_rgb(0_0_0/0.12)] ring-1 ring-black/5"
+        className="animate-sheet-slide-up absolute inset-x-0 bottom-0 mx-auto flex h-[min(85vh,640px)] max-h-[min(85vh,640px)] max-w-3xl flex-col rounded-t-3xl bg-surface shadow-[0_-8px_30px_rgb(0_0_0/0.12)] ring-1 ring-black/5"
         role="dialog"
       >
         <div className="shrink-0 px-4 pt-3">
@@ -2486,13 +2486,8 @@ function ActivityFilterDrawer({
           </div>
         </div>
 
-        <div className="relative min-h-0 flex-1">
-          <div
-            className={cn(
-              "absolute inset-0 overflow-y-auto overscroll-contain px-4 pb-4",
-              activeFilter && "pointer-events-none invisible",
-            )}
-          >
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4">
+          {!activeFilter ? (
             <ul className="divide-y divide-black/5 rounded-2xl border border-black/5">
               {filterRows.map((row) => (
                 <li key={row.key}>
@@ -2510,47 +2505,39 @@ function ActivityFilterDrawer({
                 </li>
               ))}
             </ul>
-          </div>
-
-          {activeFilter ? (
-            <div className="absolute inset-0 overflow-y-auto overscroll-contain px-4 pb-4">
-              {activeFilter === "participant" ? (
-                <FilterOptionList
-                  onSelect={onUserChange}
-                  options={[
-                    { value: "", label: "All participants" },
-                    ...users.map((user) => ({ value: user.id, label: user.name })),
-                  ]}
-                  selectedValue={userFilter}
-                />
-              ) : null}
-              {activeFilter === "division" ? (
-                <FilterOptionList
-                  onSelect={onDivisionChange}
-                  options={[
-                    { value: "", label: "All divisions" },
-                    { value: "strider", label: "Striders" },
-                    { value: "elite", label: "Elite" },
-                    { value: "riser", label: "Risers" },
-                  ]}
-                  selectedValue={divisionFilter}
-                />
-              ) : null}
-              {activeFilter === "date" ? (
-                <FilterOptionList
-                  onSelect={onDateChange}
-                  options={[
-                    { value: "", label: "All dates" },
-                    ...challengeDays.map((day) => ({
-                      value: day.date,
-                      label: formatDisplayDate(day.date),
-                    })),
-                  ]}
-                  selectedValue={dateFilter}
-                />
-              ) : null}
-            </div>
-          ) : null}
+          ) : activeFilter === "participant" ? (
+            <FilterOptionList
+              onSelect={onUserChange}
+              options={[
+                { value: "", label: "All participants" },
+                ...users.map((user) => ({ value: user.id, label: user.name })),
+              ]}
+              selectedValue={userFilter}
+            />
+          ) : activeFilter === "division" ? (
+            <FilterOptionList
+              onSelect={onDivisionChange}
+              options={[
+                { value: "", label: "All divisions" },
+                { value: "strider", label: "Striders" },
+                { value: "elite", label: "Elite" },
+                { value: "riser", label: "Risers" },
+              ]}
+              selectedValue={divisionFilter}
+            />
+          ) : (
+            <FilterOptionList
+              onSelect={onDateChange}
+              options={[
+                { value: "", label: "All dates" },
+                ...challengeDays.map((day) => ({
+                  value: day.date,
+                  label: formatDisplayDate(day.date),
+                })),
+              ]}
+              selectedValue={dateFilter}
+            />
+          )}
         </div>
 
         <div className="flex shrink-0 gap-2 border-t border-black/5 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
