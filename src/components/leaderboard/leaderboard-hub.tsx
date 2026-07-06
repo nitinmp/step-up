@@ -89,9 +89,7 @@ export function LeaderboardHub({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const activeTab = parseBoardTab(searchParams.get("view"));
-  const activeDivision = parseDivisionParam(
-    searchParams.get("division") ?? viewerDivision,
-  );
+  const activeDivision = parseDivisionParam(searchParams.get("division"));
 
   const currentDay = periods.currentDay;
   const currentWeek = periods.currentWeek;

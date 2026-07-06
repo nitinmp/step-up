@@ -30,9 +30,7 @@ export function DivisionSubTabs({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const visibleDivisions = divisions.length > 0 ? divisions : ALL_DIVISIONS;
-  const activeDivision = parseDivisionParam(
-    searchParams.get("division") ?? defaultDivision,
-  );
+  const activeDivision = parseDivisionParam(searchParams.get("division"));
   const resolvedDivision = visibleDivisions.includes(activeDivision)
     ? activeDivision
     : (visibleDivisions.includes(defaultDivision)
@@ -99,9 +97,7 @@ export function useActiveDivision(
   divisions: Division[] = ALL_DIVISIONS,
 ): Division {
   const searchParams = useSearchParams();
-  const activeDivision = parseDivisionParam(
-    searchParams.get("division") ?? defaultDivision,
-  );
+  const activeDivision = parseDivisionParam(searchParams.get("division"));
   const visibleDivisions = divisions.length > 0 ? divisions : ALL_DIVISIONS;
 
   if (visibleDivisions.includes(activeDivision)) {
