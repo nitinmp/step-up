@@ -14,6 +14,7 @@ import type {
   WeekScoringRunRecord,
 } from "@/lib/scoring-admin-service";
 import type { Division, Gender } from "@/lib/divisions";
+import { divisionLabel } from "@/lib/divisions";
 import { cn } from "@/lib/cn";
 import { photoProxyUrl } from "@/lib/blob-storage";
 import { addDaysToDateString, formatDisplayDate } from "@/lib/dates";
@@ -22,6 +23,7 @@ import { DEFAULT_PARTICIPANT_PASSWORD } from "@/lib/default-password";
 import type { UserStanding } from "@/lib/standings";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select } from "@/components/ui/select";
+import { AdminDivisionBadge } from "@/components/app/division-badge";
 
 type ChallengeDayOption = {
   date: string;
@@ -41,6 +43,7 @@ type AdminTab = "review" | "approved" | "participants" | "scoring";
 
 const ADMIN_TABS: AdminTab[] = ["review", "approved", "participants", "scoring"];
 const VISIBLE_TABS = 2;
+const APPROVED_PAGE_SIZE = 20;
 
 const adminTabTriggerClass =
   "shrink-0 rounded-lg px-2 py-2.5 text-sm font-medium sm:px-3";
@@ -216,6 +219,7 @@ export function AdminPanel({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [mobileTabOrder, setMobileTabOrder] = useState<AdminTab[]>(ADMIN_TABS);
   const [overflowMenuOpen, setOverflowMenuOpen] = useState(false);
+  const [approvedPage, setApprovedPage] = useState(1);
 
   const reviewCount = useMemo(
     () =>
@@ -232,6 +236,7 @@ export function AdminPanel({
 
   const hasActiveFilters = Boolean(userFilter || dateFilter || divisionFilter);
   const isActivitiesTab = adminTab === "review" || adminTab === "approved";
+  const isApprovedTab = adminTab === "approved";
 
   const filteredActivities = useMemo(() => {
     return activities.filter((row) => {
@@ -248,6 +253,20 @@ export function AdminPanel({
     });
   }, [activities, userFilter, dateFilter, divisionFilter, adminTab]);
 
+  const approvedTotalPages = Math.max(
+    1,
+    Math.ceil(filteredActivities.length / APPROVED_PAGE_SIZE),
+  );
+
+  const displayedActivities = useMemo(() => {
+    if (!isApprovedTab) {
+      return filteredActivities;
+    }
+
+    const start = (approvedPage - 1) * APPROVED_PAGE_SIZE;
+    return filteredActivities.slice(start, start + APPROVED_PAGE_SIZE);
+  }, [approvedPage, filteredActivities, isApprovedTab]);
+
   const visibleTabs = mobileTabOrder.slice(0, VISIBLE_TABS);
   const overflowTabs = mobileTabOrder.slice(VISIBLE_TABS);
 
@@ -260,6 +279,16 @@ export function AdminPanel({
       return promoteTabToVisibleEnd(current, adminTab, VISIBLE_TABS);
     });
   }, [adminTab]);
+
+  useEffect(() => {
+    setApprovedPage(1);
+  }, [userFilter, dateFilter, divisionFilter, adminTab]);
+
+  useEffect(() => {
+    if (approvedPage > approvedTotalPages) {
+      setApprovedPage(approvedTotalPages);
+    }
+  }, [approvedPage, approvedTotalPages]);
 
   function selectAdminTab(tab: AdminTab) {
     setAdminTab(tab);
@@ -688,26 +717,6 @@ export function AdminPanel({
           />
         ) : null}
 
-        {isActivitiesTab ? (
-          <button
-            aria-expanded={filtersOpen}
-            aria-label="Open activity filters"
-            className={cn(
-              "mb-0.5 inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand max-[360px]:px-2",
-              hasActiveFilters
-                ? "text-brand"
-                : "text-muted hover:bg-brand/5 hover:text-foreground",
-            )}
-            onClick={() => setFiltersOpen(true)}
-            type="button"
-          >
-            <FilterIcon className="size-4" />
-            <span className="max-[360px]:hidden">Filter</span>
-            {hasActiveFilters ? (
-              <span className="size-1.5 rounded-full bg-brand" />
-            ) : null}
-          </button>
-        ) : null}
       </div>
 
       <ActivityFilterDrawer
@@ -718,7 +727,7 @@ export function AdminPanel({
         onDateChange={setDateFilter}
         onDivisionChange={setDivisionFilter}
         onUserChange={setUserFilter}
-        open={filtersOpen && isActivitiesTab}
+        open={filtersOpen && isApprovedTab}
         userFilter={userFilter}
         users={users}
       />
@@ -732,12 +741,19 @@ export function AdminPanel({
 
       {isActivitiesTab ? (
         <ActivitiesTab
-          activities={filteredActivities}
+          activities={displayedActivities}
+          approvedPage={approvedPage}
+          approvedPageSize={APPROVED_PAGE_SIZE}
+          approvedTotalCount={filteredActivities.length}
+          approvedTotalPages={approvedTotalPages}
           busyId={busyId}
           challengeDays={challengeDays}
+          hasActiveFilters={hasActiveFilters}
           logForParticipantOpen={logForParticipantOpen}
           loggableDays={adminLoggableDays}
+          onApprovedPageChange={setApprovedPage}
           onCreateActivity={createParticipantActivity}
+          onFilterOpen={() => setFiltersOpen(true)}
           onLogForParticipantOpenChange={setLogForParticipantOpen}
           onDisapprove={(row, note) =>
             patchActivity(
@@ -1033,6 +1049,13 @@ function ActivitiesTab({
   onDisapprove,
   onEdit,
   busyId,
+  approvedPage,
+  approvedPageSize,
+  approvedTotalCount,
+  approvedTotalPages,
+  onApprovedPageChange,
+  hasActiveFilters,
+  onFilterOpen,
 }: {
   activities: AdminActivityRow[];
   challengeDays: ChallengeDayOption[];
@@ -1059,17 +1082,64 @@ function ActivitiesTab({
     photo?: File | null,
   ) => void;
   busyId: string | null;
+  approvedPage: number;
+  approvedPageSize: number;
+  approvedTotalCount: number;
+  approvedTotalPages: number;
+  onApprovedPageChange: (page: number) => void;
+  hasActiveFilters: boolean;
+  onFilterOpen: () => void;
 }) {
+  const approvedRangeStart =
+    approvedTotalCount === 0 ? 0 : (approvedPage - 1) * approvedPageSize + 1;
+  const approvedRangeEnd = Math.min(approvedPage * approvedPageSize, approvedTotalCount);
+
   return (
     <section className="space-y-3">
-      <div className="flex justify-end">
-        <ActionButton
-          disabled={loggableDays.length === 0}
-          onClick={() => onLogForParticipantOpenChange(true)}
-          variant="primary"
-        >
-          Log for participant
-        </ActionButton>
+      <div className="flex flex-wrap items-center gap-2">
+        {reviewTab === "approved" && approvedTotalCount > 0 ? (
+          <ApprovedActivitiesPager
+            end={approvedRangeEnd}
+            onPageChange={onApprovedPageChange}
+            page={approvedPage}
+            start={approvedRangeStart}
+            totalCount={approvedTotalCount}
+            totalPages={approvedTotalPages}
+          />
+        ) : (
+          <div className="min-w-0 flex-1" />
+        )}
+
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          <ActionButton
+            disabled={loggableDays.length === 0}
+            onClick={() => onLogForParticipantOpenChange(true)}
+            variant="primary"
+          >
+            Log for participant
+          </ActionButton>
+
+          {reviewTab === "approved" ? (
+            <button
+              aria-expanded={false}
+              aria-label="Open activity filters"
+              className={cn(
+                "inline-flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand",
+                hasActiveFilters
+                  ? "bg-brand/10 text-brand"
+                  : "bg-background text-muted hover:bg-brand/5 hover:text-foreground",
+              )}
+              onClick={onFilterOpen}
+              type="button"
+            >
+              <FilterIcon className="size-4" />
+              <span className="max-[360px]:hidden">Filter</span>
+              {hasActiveFilters ? (
+                <span className="size-1.5 rounded-full bg-brand" />
+              ) : null}
+            </button>
+          ) : null}
+        </div>
       </div>
 
       <LogForParticipantDrawer
@@ -1086,7 +1156,9 @@ function ActivitiesTab({
           text={
             reviewTab === "review"
               ? "No activities waiting for review."
-              : "No approved activities yet."
+              : hasActiveFilters
+                ? "No approved activities match these filters."
+                : "No approved activities yet."
           }
         />
       ) : (
@@ -1106,7 +1178,90 @@ function ActivitiesTab({
           />
         ))
       )}
+
+      {reviewTab === "approved" && approvedTotalPages > 1 ? (
+        <ApprovedActivitiesPager
+          className="justify-center border-t border-black/5 pt-3"
+          end={approvedRangeEnd}
+          onPageChange={onApprovedPageChange}
+          page={approvedPage}
+          start={approvedRangeStart}
+          totalCount={approvedTotalCount}
+          totalPages={approvedTotalPages}
+        />
+      ) : null}
     </section>
+  );
+}
+
+function ApprovedActivitiesPager({
+  page,
+  totalPages,
+  totalCount,
+  start,
+  end,
+  onPageChange,
+  className,
+}: {
+  page: number;
+  totalPages: number;
+  totalCount: number;
+  start: number;
+  end: number;
+  onPageChange: (page: number) => void;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex min-w-0 flex-wrap items-center gap-2 text-sm",
+        className,
+      )}
+    >
+      <p className="text-muted">
+        {start}–{end} of {totalCount}
+      </p>
+      <div className="flex items-center gap-1">
+        <button
+          aria-label="Previous page"
+          className="inline-flex size-9 items-center justify-center rounded-xl text-muted transition hover:bg-brand/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand disabled:opacity-40"
+          disabled={page <= 1}
+          onClick={() => onPageChange(page - 1)}
+          type="button"
+        >
+          <ChevronLeftIcon className="size-4" />
+        </button>
+        <span className="min-w-[4.5rem] text-center tabular-nums text-foreground">
+          {page} / {totalPages}
+        </span>
+        <button
+          aria-label="Next page"
+          className="inline-flex size-9 items-center justify-center rounded-xl text-muted transition hover:bg-brand/5 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand disabled:opacity-40"
+          disabled={page >= totalPages}
+          onClick={() => onPageChange(page + 1)}
+          type="button"
+        >
+          <ChevronRightIcon className="size-4" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ChevronLeftIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+    >
+      <path d="m15 18-6-6 6-6" />
+    </svg>
   );
 }
 
@@ -1206,11 +1361,7 @@ function ActivityAdminCard({
             <span className="rounded-full bg-brand/10 px-2 py-0.5 text-xs font-semibold text-brand">
               W{row.weekNo}
             </span>
-            {row.userDivision === "elite" ? (
-              <span className="rounded-full bg-foreground/10 px-2 py-0.5 text-xs font-semibold uppercase text-foreground">
-                Elite
-              </span>
-            ) : null}
+            <AdminDivisionBadge division={row.userDivision} />
             <StatusBadge status={row.status} />
           </div>
           <p className="mt-1 text-sm text-muted">
@@ -1575,6 +1726,7 @@ function ParticipantsTab({
                 options={[
                   { value: "strider", label: "Strider" },
                   { value: "elite", label: "Elite" },
+                  { value: "riser", label: "Riser" },
                 ]}
                 value={editDivision}
               />
@@ -1673,7 +1825,7 @@ type ParticipantConfirmAction = {
 
 function formatParticipantMeta(user: AdminUserRow): string {
   const role = user.role === "admin" ? "Admin" : "Participant";
-  const division = user.division === "elite" ? "Elite" : "Strider";
+  const division = divisionLabel(user.division);
   const gender =
     user.gender === "male"
       ? "Male"
@@ -2199,12 +2351,14 @@ function ActivityFilterDrawer({
 
   const participantLabel =
     users.find((user) => user.id === userFilter)?.name ?? "All participants";
-  const divisionLabel =
+  const divisionLabelText =
     divisionFilter === "elite"
       ? "Elite"
-      : divisionFilter === "strider"
-        ? "Striders"
-        : "All divisions";
+      : divisionFilter === "riser"
+        ? "Risers"
+        : divisionFilter === "strider"
+          ? "Striders"
+          : "All divisions";
   const dateLabel = dateFilter
     ? formatDisplayDate(dateFilter)
     : "All dates";
@@ -2215,7 +2369,7 @@ function ActivityFilterDrawer({
     value: string;
   }> = [
     { key: "participant", label: "Participant", value: participantLabel },
-    { key: "division", label: "Division", value: divisionLabel },
+    { key: "division", label: "Division", value: divisionLabelText },
     { key: "date", label: "Date", value: dateLabel },
   ];
 
@@ -2271,34 +2425,34 @@ function ActivityFilterDrawer({
           </div>
         </div>
 
-        <div className="relative min-h-0 flex-1 overflow-hidden">
+        <div className="relative min-h-0 flex-1">
           <div
             className={cn(
-              "flex h-full transition-transform duration-200 ease-out",
-              activeFilter ? "-translate-x-full" : "translate-x-0",
+              "absolute inset-0 overflow-y-auto overscroll-contain px-4 pb-4",
+              activeFilter && "pointer-events-none invisible",
             )}
           >
-            <div className="h-full w-full shrink-0 overflow-y-auto px-4 pb-4">
-              <ul className="divide-y divide-black/5 rounded-2xl border border-black/5">
-                {filterRows.map((row) => (
-                  <li key={row.key}>
-                    <button
-                      className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition hover:bg-brand/5"
-                      onClick={() => setActiveFilter(row.key)}
-                      type="button"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-foreground">{row.label}</p>
-                        <p className="truncate text-sm text-muted">{row.value}</p>
-                      </div>
-                      <ChevronRightIcon className="size-4 shrink-0 text-muted" />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
+            <ul className="divide-y divide-black/5 rounded-2xl border border-black/5">
+              {filterRows.map((row) => (
+                <li key={row.key}>
+                  <button
+                    className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition hover:bg-brand/5"
+                    onClick={() => setActiveFilter(row.key)}
+                    type="button"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-foreground">{row.label}</p>
+                      <p className="truncate text-sm text-muted">{row.value}</p>
+                    </div>
+                    <ChevronRightIcon className="size-4 shrink-0 text-muted" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
 
-            <div className="h-full w-full shrink-0 overflow-y-auto px-4 pb-4">
+          {activeFilter ? (
+            <div className="absolute inset-0 overflow-y-auto overscroll-contain px-4 pb-4">
               {activeFilter === "participant" ? (
                 <FilterOptionList
                   onSelect={onUserChange}
@@ -2316,6 +2470,7 @@ function ActivityFilterDrawer({
                     { value: "", label: "All divisions" },
                     { value: "strider", label: "Striders" },
                     { value: "elite", label: "Elite" },
+                    { value: "riser", label: "Risers" },
                   ]}
                   selectedValue={divisionFilter}
                 />
@@ -2334,7 +2489,7 @@ function ActivityFilterDrawer({
                 />
               ) : null}
             </div>
-          </div>
+          ) : null}
         </div>
 
         <div className="flex shrink-0 gap-2 border-t border-black/5 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">

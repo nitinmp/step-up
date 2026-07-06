@@ -36,7 +36,7 @@ function makeInput(
 
 describe("computeStandingsFromData", () => {
   it("sums approved base points only", () => {
-    const base = computeBasePoints(10000, 5000, 5);
+    const base = computeBasePoints(10000, 5000, 5, "2026-06-29", "strider");
     const standings = computeStandingsFromData(
       makeInput({
         users: [

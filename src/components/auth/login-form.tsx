@@ -49,7 +49,7 @@ export function LoginForm() {
       subtitle="Track your steps and climb the leaderboard."
       footer={null}
     >
-      <form className="space-y-4" onSubmit={handleSubmit}>
+      <form className="space-y-4" method="post" onSubmit={handleSubmit}>
         <label className="block space-y-2">
           <span className="text-sm font-medium text-foreground">Mobile</span>
           <input

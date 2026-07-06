@@ -1,5 +1,5 @@
 import type { Division, Gender } from "./divisions";
-import { DEFAULT_DIVISION, parseDivision } from "./divisions";
+import { ALL_DIVISIONS, DEFAULT_DIVISION, parseDivision } from "./divisions";
 import { isBeastMode } from "./scoring";
 
 export type ChallengeConfigInput = {
@@ -89,7 +89,7 @@ const DEFAULT_CONFIG: ChallengeConfigInput = {
   consistency7: 35,
 };
 
-const DIVISIONS: Division[] = ["strider", "elite"];
+const DIVISIONS = ALL_DIVISIONS;
 
 function consistencyBonusForWeek(
   daysMetInWeek: number,

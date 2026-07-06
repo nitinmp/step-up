@@ -7,6 +7,7 @@ import {
   activities,
   challengeConfig,
   challengeDay,
+  users,
 } from "@/db/schema";
 import {
   compareDateStrings,
@@ -22,6 +23,7 @@ import {
   filterStandingsByDivision,
   isRoyalHolder,
 } from "@/lib/standings";
+import { parseDivision, type Division } from "@/lib/divisions";
 import { distanceKmToStorage, parseDistanceKm } from "@/lib/distance";
 
 const ALLOWED_IMAGE_TYPES = new Set([
@@ -177,23 +179,27 @@ function buildStarOfDayKeys(
     activityDate: string;
     steps: number;
   }[],
+  userDivisions: Map<string, Division>,
   today: string,
 ): Set<string> {
-  const stepsByDate = new Map<string, Map<string, number>>();
+  const stepsByDateDivision = new Map<string, Map<string, number>>();
 
   for (const activity of approvedActivities) {
     if (activity.steps <= 0) {
       continue;
     }
 
-    const dateMap = stepsByDate.get(activity.activityDate) ?? new Map();
+    const division = userDivisions.get(activity.userId) ?? "strider";
+    const bucketKey = `${activity.activityDate}:${division}`;
+    const dateMap = stepsByDateDivision.get(bucketKey) ?? new Map();
     dateMap.set(activity.userId, activity.steps);
-    stepsByDate.set(activity.activityDate, dateMap);
+    stepsByDateDivision.set(bucketKey, dateMap);
   }
 
   const winners = new Set<string>();
 
-  for (const [date, userSteps] of stepsByDate) {
+  for (const [bucketKey, userSteps] of stepsByDateDivision) {
+    const date = bucketKey.slice(0, 10);
     if (compareDateStrings(date, today) >= 0) {
       continue;
     }
@@ -213,11 +219,17 @@ function buildStarOfDayKeys(
   return winners;
 }
 
+async function loadUserDivisionMap(db: ReturnType<typeof getDb>) {
+  const rows = await db.select({ id: users.id, division: users.division }).from(users);
+  return new Map(rows.map((row) => [row.id, parseDivision(row.division)]));
+}
+
 export async function getActivitiesDashboard(userId: string) {
   const db = getDb();
   const { config, days, today } = await getChallengeWindow();
 
-  const [userActivities, approvedForStars, standings] = await Promise.all([
+  const [userActivities, approvedForStars, standings, userDivisions] =
+    await Promise.all([
     db
       .select({
         id: activities.id,
@@ -240,6 +252,7 @@ export async function getActivitiesDashboard(userId: string) {
       })
       .from(activities),
     computeStandings(),
+    loadUserDivisionMap(db),
   ]);
 
   const activityByDate = new Map(
@@ -247,6 +260,7 @@ export async function getActivitiesDashboard(userId: string) {
   );
   const starOfDayKeys = buildStarOfDayKeys(
     approvedForStars.filter((activity) => activity.status === "approved"),
+    userDivisions,
     today,
   );
   const standing = getStandingForUser(standings, userId);
@@ -491,10 +505,20 @@ export async function createActivity(input: {
 
   const uploaded = await uploadBlob(pathname, input.photo, input.photo.type);
 
+  const [participant] = await db
+    .select({ division: users.division })
+    .from(users)
+    .where(eq(users.id, input.userId))
+    .limit(1);
+
+  const division = parseDivision(participant?.division);
+
   const basePoints = computeBasePoints(
     stepsValue,
     day.targetSteps,
     day.dayRate,
+    input.activityDate,
+    division,
   );
 
   const [created] = await db
@@ -528,8 +552,10 @@ export async function createActivity(input: {
     .from(activities);
 
   const today = getTodayDateString(appConfig.timezone);
+  const userDivisions = await loadUserDivisionMap(db);
   const starOfDayKeys = buildStarOfDayKeys(
     approvedActivities.filter((activity) => activity.status === "approved"),
+    userDivisions,
     today,
   );
   const standings = await computeStandings();
@@ -597,6 +623,13 @@ export async function updatePendingActivity(input: {
     throw new ActivityError("Invalid challenge date.", 400);
   }
 
+  const [participant] = await db
+    .select({ division: users.division })
+    .from(users)
+    .where(eq(users.id, input.userId))
+    .limit(1);
+  const division = parseDivision(participant?.division);
+
   const stepsValue = input.steps;
   const distanceKm = validateActivityMetrics(stepsValue, input.distanceKm);
 
@@ -626,6 +659,8 @@ export async function updatePendingActivity(input: {
     stepsValue,
     day.targetSteps,
     day.dayRate,
+    existing.activityDate,
+    division,
   );
 
   const [updated] = await db

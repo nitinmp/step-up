@@ -16,6 +16,7 @@ import {
   formatWeekTitle,
 } from "@/components/leaderboard/period-leaderboard-view";
 import type { Division } from "@/lib/divisions";
+import { divisionLabel } from "@/lib/divisions";
 import type { PeriodLeaderboardEntry } from "@/lib/period-leaderboard";
 import type { ChallengePeriodContext } from "@/lib/period-leaderboard";
 import type { UserStanding } from "@/lib/standings";
@@ -52,10 +53,6 @@ function parseBoardTab(value: string | null): BoardTab {
   return "daily";
 }
 
-function divisionLabel(division: Division): string {
-  return division === "elite" ? "Elite" : "Strider";
-}
-
 export function LeaderboardHub({
   currentUserId,
   periods,
@@ -90,7 +87,7 @@ export function LeaderboardHub({
             currentWeek.startDate,
             currentWeek.endDate,
           )
-        : `${divisionStandings.length} ${divisionLabel(activeDivision)} · ranked by total points`;
+        : `${divisionStandings.length} ${divisionLabel(activeDivision, true)} · ranked by total points`;
 
   function selectBoardTab(tab: BoardTab) {
     const params = new URLSearchParams(searchParams.toString());

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, ne } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ne } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import {
@@ -15,7 +15,8 @@ import {
 import { deleteBlobUrl, uploadBlob } from "@/lib/blob-storage";
 import { appConfig } from "@/config";
 import type { Division, Gender } from "@/lib/divisions";
-import { isValidGender, parseDivision, parseGender } from "@/lib/divisions";
+import { isValidDivision, isValidGender, parseDivision, parseGender } from "@/lib/divisions";
+import { TIERED_SCORING_START_DATE } from "@/lib/group-rules";
 import { isAdminLoggableDate } from "@/lib/dates";
 import { distanceKmToStorage, parseDistanceKm } from "@/lib/distance";
 import { DEFAULT_PARTICIPANT_PASSWORD } from "@/lib/default-password";
@@ -157,8 +158,10 @@ export async function updateAdminActivity(
       basePoints: activities.basePoints,
       status: activities.status,
       photoUrl: activities.photoUrl,
+      userDivision: users.division,
     })
     .from(activities)
+    .innerJoin(users, eq(users.id, activities.userId))
     .where(eq(activities.id, activityId))
     .limit(1);
 
@@ -227,10 +230,13 @@ export async function updateAdminActivity(
   }
 
   const previousBasePoints = existing.basePoints;
+  const division = parseDivision(existing.userDivision);
   const nextBasePoints = computeBasePoints(
     nextSteps,
     day.targetSteps,
     day.dayRate,
+    nextDate,
+    division,
   );
 
   let nextPhotoUrl = existing.photoUrl;
@@ -333,7 +339,7 @@ export async function createAdminActivity(
   }
 
   const [user] = await db
-    .select({ id: users.id, name: users.name })
+    .select({ id: users.id, name: users.name, division: users.division })
     .from(users)
     .where(eq(users.id, input.userId))
     .limit(1);
@@ -376,10 +382,13 @@ export async function createAdminActivity(
   const pathname = `activities/${input.userId}/${input.activityDate}-${Date.now()}.${extension}`;
   const uploaded = await uploadBlob(pathname, input.photo, input.photo.type);
 
+  const division = parseDivision(user.division);
   const basePoints = computeBasePoints(
     stepsValue,
     day.targetSteps,
     day.dayRate,
+    input.activityDate,
+    division,
   );
 
   await db.insert(activities).values({
@@ -474,8 +483,8 @@ export async function updateAdminUserProfile(
   }
 
   if (input.division !== undefined) {
-    if (input.division !== "elite" && input.division !== "strider") {
-      throw new ActivityError("Division must be elite or strider.", 400);
+    if (!isValidDivision(input.division)) {
+      throw new ActivityError("Division must be elite, strider, or riser.", 400);
     }
     updates.division = input.division;
   }
@@ -492,6 +501,17 @@ export async function updateAdminUserProfile(
   }
 
   const db = getDb();
+
+  const [currentUser] = await db
+    .select({ division: users.division })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+
+  if (!currentUser) {
+    throw new ActivityError("User not found.", 404);
+  }
+
   const [updated] = await db
     .update(users)
     .set(updates)
@@ -511,7 +531,63 @@ export async function updateAdminUserProfile(
     throw new ActivityError("User not found.", 404);
   }
 
+  if (
+    input.division !== undefined &&
+    parseDivision(currentUser.division) !== input.division
+  ) {
+    await rescoreUserActivitiesFromCutover(userId, input.division);
+  }
+
   return mapAdminUserRow(updated);
+}
+
+async function rescoreUserActivitiesFromCutover(
+  userId: string,
+  division: Division,
+) {
+  const db = getDb();
+
+  const rows = await db
+    .select({
+      id: activities.id,
+      activityDate: activities.activityDate,
+      steps: activities.steps,
+    })
+    .from(activities)
+    .where(
+      and(
+        eq(activities.userId, userId),
+        gte(activities.activityDate, TIERED_SCORING_START_DATE),
+      ),
+    );
+
+  for (const row of rows) {
+    const [day] = await db
+      .select({
+        targetSteps: challengeDay.targetSteps,
+        dayRate: challengeDay.dayRate,
+      })
+      .from(challengeDay)
+      .where(eq(challengeDay.date, row.activityDate))
+      .limit(1);
+
+    if (!day) {
+      continue;
+    }
+
+    const basePoints = computeBasePoints(
+      row.steps,
+      day.targetSteps,
+      day.dayRate,
+      row.activityDate,
+      division,
+    );
+
+    await db
+      .update(activities)
+      .set({ basePoints })
+      .where(eq(activities.id, row.id));
+  }
 }
 
 function mapAdminUserRow(row: {

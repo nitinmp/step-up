@@ -1,10 +1,11 @@
-import type { Division } from "./divisions";
+import type { Division } from "@/lib/divisions";
 import type { UserStanding, DivisionRoyals } from "./standings";
 import {
   computeDivisionRoyals,
   computeStandingsFromData,
   filterStandingsByDivision,
 } from "./standings";
+import { ALL_DIVISIONS } from "./divisions";
 import { loadScoringDataset } from "./scoring-dataset";
 import {
   buildChallengePeriodContext,
@@ -15,68 +16,71 @@ import {
   type PeriodLeaderboardEntry,
 } from "./period-leaderboard";
 
-const DIVISIONS: Division[] = ["strider", "elite"];
+function emptyDivisionRecord<T>(): Record<Division, T> {
+  return {
+    strider: [] as unknown as T,
+    elite: [] as unknown as T,
+    riser: [] as unknown as T,
+  };
+}
 
 function computeDailyForDivisions(
   dataset: Awaited<ReturnType<typeof loadScoringDataset>>,
   date: string,
 ): Record<Division, PeriodLeaderboardEntry[]> {
-  return {
-    strider: computeDailyLeaderboard({
+  const entries = emptyDivisionRecord<PeriodLeaderboardEntry[]>();
+  for (const division of ALL_DIVISIONS) {
+    entries[division] = computeDailyLeaderboard({
       date,
-      division: "strider",
+      division,
       users: dataset.users,
       activities: dataset.activities,
       challengeDays: dataset.challengeDays,
       config: dataset.config,
       calendarToday: dataset.calendarToday,
-    }),
-    elite: computeDailyLeaderboard({
-      date,
-      division: "elite",
-      users: dataset.users,
-      activities: dataset.activities,
-      challengeDays: dataset.challengeDays,
-      config: dataset.config,
-      calendarToday: dataset.calendarToday,
-    }),
-  };
+    });
+  }
+  return entries;
 }
 
 function computeWeeklyForDivisions(
   dataset: Awaited<ReturnType<typeof loadScoringDataset>>,
   weekNo: number,
 ): Record<Division, PeriodLeaderboardEntry[]> {
-  return {
-    strider: computeWeeklyLeaderboard({
+  const entries = emptyDivisionRecord<PeriodLeaderboardEntry[]>();
+  for (const division of ALL_DIVISIONS) {
+    entries[division] = computeWeeklyLeaderboard({
       weekNo,
-      division: "strider",
+      division,
       users: dataset.users,
       activities: dataset.activities,
       challengeDays: dataset.challengeDays,
       config: dataset.config,
       calendarToday: dataset.calendarToday,
-    }),
-    elite: computeWeeklyLeaderboard({
-      weekNo,
-      division: "elite",
-      users: dataset.users,
-      activities: dataset.activities,
-      challengeDays: dataset.challengeDays,
-      config: dataset.config,
-      calendarToday: dataset.calendarToday,
-    }),
-  };
+    });
+  }
+  return entries;
 }
 
 function buildRoyalsByDivision(
   standings: UserStanding[],
   challengeEnded: boolean,
 ): Record<Division, DivisionRoyals> {
-  return {
-    strider: computeDivisionRoyals(standings, "strider", challengeEnded),
-    elite: computeDivisionRoyals(standings, "elite", challengeEnded),
-  };
+  const royals = emptyDivisionRecord<DivisionRoyals>();
+  for (const division of ALL_DIVISIONS) {
+    royals[division] = computeDivisionRoyals(standings, division, challengeEnded);
+  }
+  return royals;
+}
+
+function buildStandingsByDivision(
+  overallStandings: UserStanding[],
+): Record<Division, UserStanding[]> {
+  const standings = emptyDivisionRecord<UserStanding[]>();
+  for (const division of ALL_DIVISIONS) {
+    standings[division] = filterStandingsByDivision(overallStandings, division);
+  }
+  return standings;
 }
 
 export async function getLeaderboardHubData(currentUserId: string) {
@@ -91,11 +95,11 @@ export async function getLeaderboardHubData(currentUserId: string) {
 
   const currentDaily = periods.currentDay
     ? computeDailyForDivisions(dataset, periods.currentDay.date)
-    : { strider: [], elite: [] };
+    : emptyDivisionRecord<PeriodLeaderboardEntry[]>();
 
   const currentWeekly = periods.currentWeek
     ? computeWeeklyForDivisions(dataset, periods.currentWeek.weekNo)
-    : { strider: [], elite: [] };
+    : emptyDivisionRecord<PeriodLeaderboardEntry[]>();
 
   const viewer = overallStandings.find((row) => row.userId === currentUserId);
 
@@ -104,10 +108,7 @@ export async function getLeaderboardHubData(currentUserId: string) {
     periods,
     challengeEndDate: dataset.challengeEndDate,
     overallStandings,
-    standingsByDivision: {
-      strider: filterStandingsByDivision(overallStandings, "strider"),
-      elite: filterStandingsByDivision(overallStandings, "elite"),
-    },
+    standingsByDivision: buildStandingsByDivision(overallStandings),
     royalsByDivision,
     currentDaily,
     currentWeekly,

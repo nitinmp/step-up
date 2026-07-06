@@ -7,7 +7,7 @@ import type { Division } from "@/lib/divisions";
 import type { UserStanding } from "@/lib/standings";
 import { formatDisplayDate } from "@/lib/dates";
 import { formatDistanceKm } from "@/lib/distance";
-import { DivisionRankLabel, EliteBadge } from "@/components/app/division-badge";
+import { DivisionRankLabel, DivisionBadge } from "@/components/app/division-badge";
 
 type ActivitiesSummaryProps = {
   standing?: UserStanding;
@@ -42,7 +42,7 @@ export function ActivitiesSummary({
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            {division === "elite" ? <EliteBadge /> : null}
+            <DivisionBadge division={division} />
             {isKing ? (
               <span className="inline-flex items-center rounded-full bg-white/15 px-2.5 py-1 text-xs font-semibold text-white">
                 👑 King

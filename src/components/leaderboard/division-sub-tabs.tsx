@@ -2,17 +2,20 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
-import type { Division } from "@/lib/divisions";
+import { ALL_DIVISIONS, divisionLabel, type Division } from "@/lib/divisions";
 import { cn } from "@/lib/cn";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const divisionTabClass = cn(
-  "h-full flex-1 rounded-xl px-4 py-2 text-sm font-medium text-muted shadow-none transition-all",
+  "h-full flex-1 rounded-xl px-2 py-2 text-sm font-medium text-muted shadow-none transition-all sm:px-4",
   "data-[active]:bg-surface data-[active]:font-semibold data-[active]:text-foreground data-[active]:shadow-sm",
 );
 
 export function parseDivisionParam(value: string | null): Division {
-  return value === "elite" ? "elite" : "strider";
+  if (value === "elite" || value === "riser") {
+    return value;
+  }
+  return "strider";
 }
 
 export function DivisionSubTabs({
@@ -44,13 +47,12 @@ export function DivisionSubTabs({
       onValueChange={(value) => selectDivision(parseDivisionParam(value))}
       value={activeDivision}
     >
-      <TabsList className="grid h-11 w-full grid-cols-2 rounded-2xl bg-black/[0.06] p-1">
-        <TabsTrigger className={divisionTabClass} value="strider">
-          Striders
-        </TabsTrigger>
-        <TabsTrigger className={divisionTabClass} value="elite">
-          Elite
-        </TabsTrigger>
+      <TabsList className="grid h-11 w-full grid-cols-3 rounded-2xl bg-black/[0.06] p-1">
+        {ALL_DIVISIONS.map((division) => (
+          <TabsTrigger className={divisionTabClass} key={division} value={division}>
+            {divisionLabel(division, true)}
+          </TabsTrigger>
+        ))}
       </TabsList>
     </Tabs>
   );
