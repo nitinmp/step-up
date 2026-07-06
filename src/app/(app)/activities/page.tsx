@@ -1,10 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
-import {
-  ActivitiesSummary,
-  ActivityLogList,
-} from "@/components/activities/activities-dashboard";
+import { ActivitiesHome } from "@/components/activities/activities-home";
 import { getActivitiesDashboard } from "@/lib/activities-service";
 
 export default async function ActivitiesPage() {
@@ -14,21 +11,23 @@ export default async function ActivitiesPage() {
   }
 
   const dashboard = await getActivitiesDashboard(session.user.id);
-  const currentWeek =
-    dashboard.dayRows.find((day) => day.date === dashboard.today)?.weekNo ?? 1;
 
   return (
-    <div className="space-y-6 pb-4">
-      <ActivitiesSummary
-        currentWeek={currentWeek}
-        division={dashboard.division}
-        isKing={dashboard.isKing}
-        isQueen={dashboard.isQueen}
-        participantCount={dashboard.participantCount}
-        standing={dashboard.standing}
-        weekStats={dashboard.weekStats}
-      />
-      <ActivityLogList activities={dashboard.loggedActivities} />
-    </div>
+    <ActivitiesHome
+      aggregates={dashboard.aggregates}
+      badgeEarnedCount={dashboard.badgeEarnedCount}
+      badgePreview={dashboard.badgePreview}
+      badgeTotalCount={dashboard.badgeTotalCount}
+      challengeDayIndex={dashboard.challengeDayIndex}
+      challengeTotalDays={dashboard.challengeTotalDays}
+      climbWeeks={dashboard.climbWeeks}
+      currentWeek={dashboard.currentWeek}
+      division={dashboard.division}
+      loggedActivities={dashboard.loggedActivities}
+      points={dashboard.points}
+      pushCallout={dashboard.pushCallout}
+      rankChase={dashboard.rankChase}
+      streakCalendar={dashboard.streakCalendar}
+    />
   );
 }

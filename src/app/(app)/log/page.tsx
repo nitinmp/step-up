@@ -40,8 +40,9 @@ export default async function LogPage({ searchParams }: LogPageProps) {
 
       return (
         <LogPageClient
-          badgeCounts={badgesPage.badgeCounts}
-          badges={badgesPage.badges}
+          achievements={badgesPage.achievements}
+          badgeEarnedCount={badgesPage.badgeEarnedCount}
+          badgeTotalCount={badgesPage.badgeTotalCount}
           editActivity={editActivity}
           logContext={context}
         />
@@ -56,8 +57,9 @@ export default async function LogPage({ searchParams }: LogPageProps) {
 
   return (
     <LogPageClient
-      badgeCounts={badgesPage.badgeCounts}
-      badges={badgesPage.badges}
+      achievements={badgesPage.achievements}
+      badgeEarnedCount={badgesPage.badgeEarnedCount}
+      badgeTotalCount={badgesPage.badgeTotalCount}
       logContext={context}
     />
   );

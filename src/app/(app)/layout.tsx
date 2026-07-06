@@ -1,17 +1,17 @@
 import { auth } from "@/auth";
 import { BottomNav } from "@/components/app/bottom-nav";
+import { HeaderDivisionChip } from "@/components/app/header-division-chip";
 import { HeaderProfileLink } from "@/components/app/header-profile-link";
 import { photoProxyUrl } from "@/lib/blob-storage";
-import { computeStandings, getStandingForUser } from "@/lib/standings-service";
+import { getActivitiesDashboard } from "@/lib/activities-service";
 
 export default async function AppLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   const session = await auth();
-  const standings = session?.user?.id ? await computeStandings() : [];
-  const standing = session?.user?.id
-    ? getStandingForUser(standings, session.user.id)
-    : undefined;
+  const dashboard = session?.user?.id
+    ? await getActivitiesDashboard(session.user.id)
+    : null;
 
   return (
     <div className="flex min-h-full flex-col bg-background">
@@ -21,13 +21,18 @@ export default async function AppLayout({
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand">
               Step Up
             </p>
-            <p className="text-sm text-muted">29-day challenge</p>
+            {dashboard ? (
+              <p className="text-sm text-muted">
+                Day {dashboard.challengeDayIndex} of {dashboard.challengeTotalDays}{" "}
+                · Week {dashboard.currentWeek}
+              </p>
+            ) : (
+              <p className="text-sm text-muted">29-day challenge</p>
+            )}
           </div>
           <div className="flex items-center gap-2">
-            {standing ? (
-              <span className="rounded-full bg-gold/20 px-3 py-1 text-sm font-semibold text-foreground">
-                #{standing.rank} · {standing.total} pts
-              </span>
+            {dashboard ? (
+              <HeaderDivisionChip division={dashboard.division} />
             ) : null}
             {session?.user ? (
               <HeaderProfileLink

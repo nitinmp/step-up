@@ -3,8 +3,8 @@ import Link from "next/link";
 import { AchievementBadgeGrid } from "@/components/badges/achievement-badge-grid";
 import { ParticipantAvatar } from "@/components/app/participant-avatar";
 import { DivisionBadge, DivisionRankLabel } from "@/components/app/division-badge";
+import { achievementsToDisplay } from "@/lib/achievement-display";
 import type { ParticipantBadgesPageData } from "@/lib/participant-badges-service";
-import { participantBadgesToDisplay } from "@/lib/participant-badge-display";
 
 type ParticipantBadgesViewProps = {
   data: ParticipantBadgesPageData;
@@ -19,9 +19,9 @@ export function ParticipantBadgesView({
   backHref = "/leaderboard",
   backLabel = "Back to board",
 }: ParticipantBadgesViewProps) {
-  const { user, standing, participantCountInDivision, badges, badgeCounts } = data;
+  const { user, standing, participantCountInDivision, achievements, badgeEarnedCount, badgeTotalCount } = data;
   const isCurrentUser = user.id === currentUserId;
-  const achievements = participantBadgesToDisplay(badges);
+  const achievementDisplays = achievementsToDisplay(achievements);
 
   return (
     <div className="space-y-6">
@@ -71,15 +71,18 @@ export function ParticipantBadgesView({
         </div>
 
         <div className="mt-5 grid grid-cols-3 gap-2 text-center text-sm">
-          <BadgeStat label="Day stars" value={badgeCounts.starDay} />
-          <BadgeStat label="Week stars" value={badgeCounts.starWeek} />
-          <BadgeStat label="Consistency" value={badgeCounts.consistency} />
+          <BadgeStat label="Earned" value={badgeEarnedCount} />
+          <BadgeStat label="Series" value={badgeTotalCount} />
+          <BadgeStat
+            label="In progress"
+            value={achievements.filter((entry) => entry.earnedTierIndex === null).length}
+          />
         </div>
       </header>
 
       <AchievementBadgeGrid
-        achievements={achievements}
-        emptyMessage="No badges yet. Stars and consistency awards appear here after each day or week ends."
+        achievements={achievementDisplays}
+        emptyMessage="No badges yet."
         title="Earned badges"
       />
     </div>

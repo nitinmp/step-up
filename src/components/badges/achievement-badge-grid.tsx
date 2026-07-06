@@ -33,7 +33,7 @@ export function AchievementBadgeGrid({
       </div>
 
       {achievements.length > 0 ? (
-        <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           {achievements.map((achievement) => (
             <li key={achievement.id}>
               <AchievementBadge achievement={achievement} />

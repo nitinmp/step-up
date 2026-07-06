@@ -13,11 +13,8 @@ import { BottomDrawer } from "@/components/ui/bottom-drawer";
 import type { EditActivityContext } from "@/lib/activities-service";
 import { fireActivityLogConfetti } from "@/lib/confetti";
 import { formatDisplayDate } from "@/lib/dates";
-import {
-  BADGE_CATALOG_LOCKED,
-  participantBadgesToDisplay,
-} from "@/lib/participant-badge-display";
-import type { ParticipantBadge } from "@/lib/participant-badges";
+import type { UserAchievementState } from "@/lib/achievement-badges";
+import { achievementsToDisplay } from "@/lib/achievement-display";
 import { cn } from "@/lib/cn";
 
 type LogContext = {
@@ -34,19 +31,17 @@ type LogContext = {
 
 type LogPageClientProps = {
   logContext: LogContext;
-  badges: ParticipantBadge[];
-  badgeCounts: {
-    starDay: number;
-    starWeek: number;
-    consistency: number;
-  };
+  achievements: UserAchievementState[];
+  badgeEarnedCount: number;
+  badgeTotalCount: number;
   editActivity?: EditActivityContext;
 };
 
 export function LogPageClient({
   logContext,
-  badges,
-  badgeCounts,
+  achievements,
+  badgeEarnedCount,
+  badgeTotalCount,
   editActivity,
 }: LogPageClientProps) {
   const router = useRouter();
@@ -55,9 +50,9 @@ export function LogPageClient({
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [formKey, setFormKey] = useState(0);
 
-  const achievements = useMemo(
-    () => participantBadgesToDisplay(badges),
-    [badges],
+  const achievementDisplays = useMemo(
+    () => achievementsToDisplay(achievements),
+    [achievements],
   );
 
   const canLog = isEdit || logContext.selectableDays.length > 0;
@@ -84,6 +79,12 @@ export function LogPageClient({
     }
   }, [isEdit]);
 
+  useEffect(() => {
+    if (window.location.hash === "#badges") {
+      document.getElementById("badges")?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, []);
+
   function openDrawer() {
     if (!canLog) {
       return;
@@ -102,6 +103,13 @@ export function LogPageClient({
   function handleSuccess(result: LogSubmitResult) {
     if (result.mode === "create") {
       fireActivityLogConfetti();
+    }
+
+    if (result.newlyUnlockedBadges && result.newlyUnlockedBadges.length > 0) {
+      sessionStorage.setItem(
+        "stepup:pending-unlocks",
+        JSON.stringify(result.newlyUnlockedBadges),
+      );
     }
 
     const bonusPoints =
@@ -158,18 +166,21 @@ export function LogPageClient({
       ) : null}
 
       <div className="grid grid-cols-3 gap-2 text-center text-sm">
-        <BadgeStat label="Day stars" value={badgeCounts.starDay} />
-        <BadgeStat label="Week stars" value={badgeCounts.starWeek} />
-        <BadgeStat label="Consistency" value={badgeCounts.consistency} />
+        <BadgeStat label="Earned" value={badgeEarnedCount} />
+        <BadgeStat label="Total series" value={badgeTotalCount} />
+        <BadgeStat
+          label="In progress"
+          value={achievements.filter((entry) => entry.earnedTierIndex === null).length}
+        />
       </div>
 
-      <AchievementBadgeGrid
-        achievements={achievements}
-        emptyMessage="No badges earned yet. Stars and consistency awards appear after each day or week ends."
-        lockedCatalog={BADGE_CATALOG_LOCKED}
-        showLockedCatalogWhenEmpty
-        title="Your badges"
-      />
+      <div id="badges">
+        <AchievementBadgeGrid
+          achievements={achievementDisplays}
+          emptyMessage="No badges earned yet. Keep logging to unlock achievements."
+          title={`Your badges · ${badgeEarnedCount} of ${badgeTotalCount}`}
+        />
+      </div>
 
       <BottomDrawer
         onClose={closeDrawer}

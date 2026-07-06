@@ -19,7 +19,8 @@
     "test:standings": "tsx --test scripts/standings.test.ts",
     "test:period-scoring": "tsx --test scripts/period-scoring.test.ts",
     "test:dates": "tsx --test scripts/dates.test.ts",
-    "test": "pnpm test:scoring && pnpm test:standings && pnpm test:period-scoring && pnpm test:dates"
+    "test:dashboard": "tsx --test scripts/dashboard-stats.test.ts",
+    "test": "pnpm test:scoring && pnpm test:standings && pnpm test:period-scoring && pnpm test:dates && pnpm test:dashboard"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

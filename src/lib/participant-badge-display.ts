@@ -10,6 +10,8 @@ export type BadgeAchievementDisplay = {
   emoji: string;
   achievedAt: string | null;
   accent: "gold" | "brand" | "muted";
+  progress?: number;
+  isRare?: boolean;
 };
 
 export function participantBadgeToDisplay(

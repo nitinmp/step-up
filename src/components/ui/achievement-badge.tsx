@@ -88,6 +88,14 @@ export function AchievementBadge({
         {achievement.detail ? (
           <p className="text-[11px] leading-snug text-muted">{achievement.detail}</p>
         ) : null}
+        {!isUnlocked && typeof achievement.progress === "number" ? (
+          <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-black/[0.06]">
+            <div
+              className="h-full rounded-full bg-brand/50"
+              style={{ width: `${achievement.progress}%` }}
+            />
+          </div>
+        ) : null}
         {isUnlocked && typeof achievement.points === "number" ? (
           <p className="text-xs font-semibold tabular-nums text-brand">
             +{achievement.points} pts

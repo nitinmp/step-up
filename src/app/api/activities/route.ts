@@ -52,6 +52,7 @@ export async function POST(request: Request) {
         rank: result.standing?.rank ?? null,
         total: result.standing?.total ?? null,
         breakdown: result.standing?.breakdown ?? null,
+        newlyUnlockedBadges: result.newlyUnlockedBadges,
       },
       { status: 201 },
     );

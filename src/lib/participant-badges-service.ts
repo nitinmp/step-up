@@ -2,12 +2,8 @@ import { eq } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { users } from "@/db/schema";
+import { computeAllUserAchievements } from "@/lib/achievement-badges";
 import { parseDivision } from "@/lib/divisions";
-import {
-  computeParticipantBadges,
-  countBadgesByKind,
-  type ParticipantBadge,
-} from "@/lib/participant-badges";
 import { loadScoringDataset } from "@/lib/scoring-dataset";
 import {
   computeStandingsFromData,
@@ -25,8 +21,9 @@ export type ParticipantBadgesPageData = {
   };
   standing: UserStanding | null;
   participantCountInDivision: number;
-  badges: ParticipantBadge[];
-  badgeCounts: ReturnType<typeof countBadgesByKind>;
+  achievements: ReturnType<typeof computeAllUserAchievements>["achievements"];
+  badgeEarnedCount: number;
+  badgeTotalCount: number;
 };
 
 export async function getParticipantBadgesPage(
@@ -55,13 +52,32 @@ export async function getParticipantBadgesPage(
   const participantCountInDivision = standing
     ? filterStandingsByDivision(standings, standing.division).length
     : filterStandingsByDivision(standings, division).length;
-  const badges = computeParticipantBadges(userId, {
-    users: dataset.users,
-    activities: dataset.activities,
-    challengeDays: dataset.challengeDays,
-    config: dataset.config,
-    today: dataset.calendarToday,
-  });
+
+  const userActivities = dataset.activities.filter(
+    (activity) => activity.userId === userId && activity.status === "approved",
+  );
+  const cumulativeKm = userActivities.reduce(
+    (sum, activity) => sum + Math.round(activity.steps * 0.000762 * 1000) / 1000,
+    0,
+  );
+
+  const distanceByActivity = new Map<string, number>();
+  for (const activity of dataset.activities) {
+    if (activity.status === "approved") {
+      distanceByActivity.set(
+        `${activity.userId}:${activity.activityDate}`,
+        Math.round(activity.steps * 0.000762 * 1000) / 1000,
+      );
+    }
+  }
+
+  const achievementBundle = computeAllUserAchievements(
+    userId,
+    dataset,
+    standing,
+    cumulativeKm,
+    distanceByActivity,
+  );
 
   return {
     user: {
@@ -72,7 +88,8 @@ export async function getParticipantBadgesPage(
     },
     standing,
     participantCountInDivision,
-    badges,
-    badgeCounts: countBadgesByKind(badges),
+    achievements: achievementBundle.achievements,
+    badgeEarnedCount: achievementBundle.earnedCount,
+    badgeTotalCount: achievementBundle.totalCount,
   };
 }

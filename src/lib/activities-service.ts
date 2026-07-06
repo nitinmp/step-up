@@ -1,4 +1,5 @@
 import { and, eq } from "drizzle-orm";
+import { cache } from "react";
 
 import { appConfig } from "@/config";
 import { uploadBlob, deleteBlobUrl } from "@/lib/blob-storage";
@@ -19,13 +20,26 @@ import {
 import { computeBasePoints, isBeastMode } from "@/lib/scoring";
 import { computeStandings, getStandingForUser } from "@/lib/standings-service";
 import {
-  computeDivisionRoyals,
   filterStandingsByDivision,
-  isRoyalHolder,
 } from "@/lib/standings";
 import { parseDivision, type Division } from "@/lib/divisions";
 import { getDivisionForDate } from "@/lib/division-as-of-cutover";
 import { distanceKmToStorage, parseDistanceKm } from "@/lib/distance";
+import {
+  computeAllUserAchievements,
+  selectBadgePreview,
+} from "@/lib/achievement-badges";
+import { computeAchievementUnlocks } from "@/lib/achievement-unlock";
+import {
+  computeDashboardStats,
+  computeRankChase,
+  pushBonusCallout,
+  type ClimbWeek,
+  type PointsBreakdown,
+  type RankChase,
+  type StreakCalendarDay,
+} from "@/lib/dashboard-stats";
+import { loadScoringDataset } from "@/lib/scoring-dataset";
 
 const ALLOWED_IMAGE_TYPES = new Set([
   "image/jpeg",
@@ -52,6 +66,9 @@ export type ActivityRecord = {
   status: string;
   adminNote: string | null;
   photoUrl: string;
+  targetPoints?: number;
+  pushPoints?: number;
+  targetPct?: number;
 };
 
 export type DashboardDay = ChallengeDayRow & {
@@ -229,11 +246,13 @@ async function loadUserDivisionMap(db: ReturnType<typeof getDb>) {
   return new Map(rows.map((row) => [row.id, parseDivision(row.division)]));
 }
 
-export async function getActivitiesDashboard(userId: string) {
+export const getActivitiesDashboard = cache(async function getActivitiesDashboard(
+  userId: string,
+) {
   const db = getDb();
   const { config, days, today } = await getChallengeWindow();
 
-  const [userActivities, approvedForStars, standings, userDivisions] =
+  const [userActivities, approvedForStars, standings, userDivisions, dataset] =
     await Promise.all([
     db
       .select({
@@ -258,6 +277,7 @@ export async function getActivitiesDashboard(userId: string) {
       .from(activities),
     computeStandings(),
     loadUserDivisionMap(db),
+    loadScoringDataset(),
   ]);
 
   const activityByDate = new Map(
@@ -273,13 +293,6 @@ export async function getActivitiesDashboard(userId: string) {
     ? filterStandingsByDivision(standings, standing.division)
     : [];
   const challengeEnded = today > config.endDate;
-  const royals = standing
-    ? computeDivisionRoyals(standings, standing.division, challengeEnded)
-    : null;
-  const royalFlags =
-    standing && royals
-      ? isRoyalHolder(royals, userId)
-      : { isKing: false, isQueen: false };
 
   const dayRows: DashboardDay[] = days
     .slice()
@@ -312,17 +325,28 @@ export async function getActivitiesDashboard(userId: string) {
       return {
         ...day,
         activity: activity
-          ? {
-              ...activity,
-              isBeast: isBeastMode(
-                activity.steps,
-                day.targetSteps,
-                config.beastMultiplier,
-              ),
-              isStarOfDay:
-                activity.status === "approved" &&
-                starOfDayKeys.has(`${day.date}:${userId}`),
-            }
+          ? (() => {
+              const met = activity.steps >= day.targetSteps;
+              const targetPart = met ? day.dayRate : 0;
+              const targetPct =
+                day.targetSteps > 0
+                  ? Math.round((activity.steps / day.targetSteps) * 100)
+                  : 0;
+              return {
+                ...activity,
+                targetPoints: targetPart,
+                pushPoints: activity.basePoints - targetPart,
+                targetPct,
+                isBeast: isBeastMode(
+                  activity.steps,
+                  day.targetSteps,
+                  config.beastMultiplier,
+                ),
+                isStarOfDay:
+                  activity.status === "approved" &&
+                  starOfDayKeys.has(`${day.date}:${userId}`),
+              };
+            })()
           : undefined,
         state,
         canLog,
@@ -337,18 +361,87 @@ export async function getActivitiesDashboard(userId: string) {
 
   const weekStats = buildWeekStats(loggedActivities);
 
+  const cumulativeKm = loggedActivities
+    .filter((day) => day.activity.status === "approved")
+    .reduce((sum, day) => sum + Number(day.activity.distanceKm), 0);
+
+  const dashboardStats = computeDashboardStats({
+    userId,
+    division: standing?.division ?? "strider",
+    standing: standing ?? null,
+    activities: dataset.activities,
+    challengeDays: dataset.challengeDays,
+    users: dataset.users,
+    config: dataset.config,
+    today,
+    cumulativeKmOverride: cumulativeKm,
+  });
+
+  const rankChase = computeRankChase(
+    standing ?? null,
+    divisionStandings,
+  );
+
+  const distanceByActivity = new Map<string, number>();
+  for (const activity of userActivities) {
+    if (activity.status === "approved") {
+      distanceByActivity.set(
+        `${userId}:${activity.activityDate}`,
+        Number(activity.distanceKm),
+      );
+    }
+  }
+  for (const activity of dataset.activities) {
+    if (activity.status === "approved" && activity.userId !== userId) {
+      distanceByActivity.set(
+        `${activity.userId}:${activity.activityDate}`,
+        Math.round(activity.steps * 0.000762 * 1000) / 1000,
+      );
+    }
+  }
+
+  const achievementBundle = computeAllUserAchievements(
+    userId,
+    dataset,
+    standing ?? null,
+    cumulativeKm,
+    distanceByActivity,
+  );
+
+  const badgePreview = selectBadgePreview(achievementBundle.achievements);
+
+  const currentWeek =
+    days.find((day) => day.date === today)?.weekNo ??
+    days.filter((day) => day.date <= today).at(-1)?.weekNo ??
+    1;
+
   return {
     today,
+    challengeEnded,
+    currentWeek,
+    challengeDayIndex: dashboardStats.aggregates.challengeDayIndex,
+    challengeTotalDays: dashboardStats.aggregates.challengeTotalDays,
     standing,
     participantCount: divisionStandings.length,
     division: standing?.division ?? "strider",
-    isKing: royalFlags.isKing,
-    isQueen: royalFlags.isQueen,
+    points: dashboardStats.points,
+    rankChase,
+    aggregates: dashboardStats.aggregates,
+    climbWeeks: dashboardStats.climbWeeks,
+    streakCalendar: dashboardStats.streakCalendar,
+    pushCallout: pushBonusCallout(
+      standing?.division ?? "strider",
+      dashboardStats.points.pushPoints,
+    ),
+    achievements: achievementBundle.achievements,
+    badgePreview,
+    badgeEarnedCount: achievementBundle.earnedCount,
+    badgeTotalCount: achievementBundle.totalCount,
     dayRows,
     loggedActivities,
     weekStats,
   };
-}
+});
 
 export async function getLogContext(userId: string) {
   const db = getDb();
@@ -564,6 +657,65 @@ export async function createActivity(input: {
     today,
   );
   const standings = await computeStandings();
+  const standing = getStandingForUser(standings, input.userId) ?? null;
+
+  const dataset = await loadScoringDataset();
+  const beforeActivities = dataset.activities;
+  const afterActivities = [
+    ...beforeActivities.filter(
+      (activity) =>
+        !(
+          activity.userId === input.userId &&
+          activity.activityDate === input.activityDate
+        ),
+    ),
+    {
+      userId: input.userId,
+      activityDate: input.activityDate,
+      steps: stepsValue,
+      basePoints,
+      status: "approved",
+    },
+  ];
+
+  const distanceKmNum = Number(distanceKmToStorage(distanceKm));
+  const distanceByActivity = new Map<string, number>();
+  for (const activity of afterActivities) {
+    if (activity.status === "approved") {
+      distanceByActivity.set(
+        `${activity.userId}:${activity.activityDate}`,
+        activity.userId === input.userId &&
+          activity.activityDate === input.activityDate
+          ? distanceKmNum
+          : Math.round(activity.steps * 0.000762 * 1000) / 1000,
+      );
+    }
+  }
+
+  const cumulativeKm = afterActivities
+    .filter(
+      (activity) =>
+        activity.userId === input.userId && activity.status === "approved",
+    )
+    .reduce(
+      (sum, activity) =>
+        sum +
+        (distanceByActivity.get(`${activity.userId}:${activity.activityDate}`) ??
+          0),
+      0,
+    );
+
+  const newlyUnlockedBadges = computeAchievementUnlocks({
+    userId: input.userId,
+    dataset,
+    standing,
+    cumulativeKm,
+    beforeActivities,
+    afterActivities,
+    newSteps: stepsValue,
+    newActivityDate: input.activityDate,
+    distanceByActivity,
+  });
 
   return {
     activity: created,
@@ -574,7 +726,8 @@ export async function createActivity(input: {
       day.targetSteps,
       config.beastMultiplier,
     ),
-    standing: getStandingForUser(standings, input.userId),
+    standing,
+    newlyUnlockedBadges,
   };
 }
 
