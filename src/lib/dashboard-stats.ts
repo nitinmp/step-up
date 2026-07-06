@@ -55,6 +55,7 @@ export type StreakCalendarDay = {
   date: string;
   weekday: string;
   logged: boolean;
+  pending: boolean;
   isToday: boolean;
 };
 
@@ -222,7 +223,14 @@ export function computeDashboardStats(input: DashboardStatsInput): {
   let bestDayPct = 0;
 
   const loggedDates = new Set<string>();
+  const pendingDates = new Set<string>();
   const daysMetByWeek = new Map<number, number>();
+
+  for (const activity of activities) {
+    if (activity.userId === userId && activity.status === "pending") {
+      pendingDates.add(activity.activityDate);
+    }
+  }
 
   for (const activity of approved) {
     const day = dayMap.get(activity.activityDate);
@@ -334,6 +342,7 @@ export function computeDashboardStats(input: DashboardStatsInput): {
     date,
     weekday: weekdayLabel(date),
     logged: loggedDates.has(date),
+    pending: pendingDates.has(date) && !loggedDates.has(date),
     isToday: date === today,
   }));
 

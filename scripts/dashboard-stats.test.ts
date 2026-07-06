@@ -58,6 +58,45 @@ test("computeLoggingStreaks ignores today when not logged", () => {
   assert.equal(streaks.longest, 2);
 });
 
+test("computePointsBreakdown ignores pending activities", () => {
+  const breakdown = computePointsBreakdown(
+    "u1",
+    [
+      {
+        userId: "u1",
+        activityDate: "2026-07-03",
+        steps: 15000,
+        basePoints: 50,
+        status: "pending",
+      },
+      {
+        userId: "u1",
+        activityDate: "2026-07-02",
+        steps: 12000,
+        basePoints: 45,
+        status: "approved",
+      },
+    ],
+    [
+      {
+        date: "2026-07-02",
+        weekNo: 1,
+        dayRate: 5,
+        targetSteps: 7000,
+      },
+      {
+        date: "2026-07-03",
+        weekNo: 1,
+        dayRate: 5,
+        targetSteps: 7000,
+      },
+    ],
+  );
+
+  assert.equal(breakdown.targetPoints, 5);
+  assert.equal(breakdown.pushPoints, 40);
+});
+
 test("computeRankChase returns gap to rank above", () => {
   const standing: UserStanding = {
     userId: "u2",

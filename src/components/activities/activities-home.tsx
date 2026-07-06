@@ -304,13 +304,19 @@ function StreakChainSection({
                 "flex size-10 items-center justify-center rounded-full border",
                 day.logged
                   ? "border-orange-200 bg-orange-50"
-                  : "border-black/5 bg-background",
+                  : day.pending
+                    ? "border-warning/30 bg-warning/10"
+                    : "border-black/5 bg-background",
                 day.isToday && "ring-2 ring-brand/30",
               )}
             >
               {day.logged ? (
                 <span aria-hidden="true" className="text-lg">
                   🔥
+                </span>
+              ) : day.pending ? (
+                <span aria-hidden="true" className="text-sm">
+                  ⏳
                 </span>
               ) : day.isToday ? (
                 <span className="size-2 rounded-full bg-brand/40" />
@@ -379,11 +385,18 @@ function ActivityCard({
   day: ActivitiesHomeProps["loggedActivities"][number];
 }) {
   const activity = day.activity;
-  const met = activity.targetPct !== undefined && activity.targetPct >= 100;
-  const canEdit = activity.status === "pending";
+  const isPending = activity.status === "pending";
+  const met =
+    !isPending && activity.targetPct !== undefined && activity.targetPct >= 100;
+  const canEdit = isPending;
 
   return (
-    <article className="rounded-3xl border border-black/5 bg-surface p-4 shadow-sm">
+    <article
+      className={cn(
+        "rounded-3xl border bg-surface p-4 shadow-sm",
+        isPending ? "border-warning/30" : "border-black/5",
+      )}
+    >
       <div className="flex gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
@@ -400,6 +413,11 @@ function ActivityCard({
                 ⭐ Star
               </span>
             ) : null}
+            {isPending ? (
+              <span className="rounded-full bg-warning/15 px-2 py-0.5 text-[10px] font-semibold text-warning">
+                Pending review
+              </span>
+            ) : null}
             {day.state === "disapproved" ? (
               <span className="rounded-full bg-danger/10 px-2 py-0.5 text-[10px] font-semibold text-danger">
                 Disapproved
@@ -408,8 +426,17 @@ function ActivityCard({
           </div>
 
           <p className="mt-1 text-sm text-muted">
-            +{activity.basePoints} pts · Target{" "}
-            {day.targetSteps.toLocaleString("en-IN")}
+            {isPending ? (
+              <>
+                Awaiting approval · ~{activity.basePoints} pts if approved ·
+                Target {day.targetSteps.toLocaleString("en-IN")}
+              </>
+            ) : (
+              <>
+                +{activity.basePoints} pts · Target{" "}
+                {day.targetSteps.toLocaleString("en-IN")}
+              </>
+            )}
             {activity.targetPct !== undefined
               ? ` · ${activity.targetPct}%`
               : null}

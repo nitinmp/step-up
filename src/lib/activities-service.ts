@@ -75,7 +75,7 @@ export type DashboardDay = ChallengeDayRow & {
     isBeast: boolean;
     isStarOfDay: boolean;
   };
-  state: "future" | "not_logged" | "logged" | "disapproved";
+  state: "future" | "not_logged" | "logged" | "pending" | "disapproved";
   canLog: boolean;
 };
 
@@ -317,6 +317,8 @@ export const getActivitiesDashboard = cache(async function getActivitiesDashboar
         state = "future";
       } else if (activity?.status === "disapproved") {
         state = "disapproved";
+      } else if (activity?.status === "pending") {
+        state = "pending";
       } else if (activity) {
         state = "logged";
       }
@@ -336,11 +338,13 @@ export const getActivitiesDashboard = cache(async function getActivitiesDashboar
                 targetPoints: targetPart,
                 pushPoints: activity.basePoints - targetPart,
                 targetPct,
-                isBeast: isBeastMode(
-                  activity.steps,
-                  day.targetSteps,
-                  config.beastMultiplier,
-                ),
+                isBeast:
+                  activity.status === "approved" &&
+                  isBeastMode(
+                    activity.steps,
+                    day.targetSteps,
+                    config.beastMultiplier,
+                  ),
                 isStarOfDay:
                   activity.status === "approved" &&
                   starOfDayKeys.has(`${day.date}:${userId}`),
