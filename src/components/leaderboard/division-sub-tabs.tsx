@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { ALL_DIVISIONS, divisionLabel, type Division } from "@/lib/divisions";
@@ -19,16 +20,46 @@ export function parseDivisionParam(value: string | null): Division {
 }
 
 export function DivisionSubTabs({
+  divisions = ALL_DIVISIONS,
   defaultDivision = "strider",
 }: {
+  divisions?: Division[];
   defaultDivision?: Division;
 }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const visibleDivisions = divisions.length > 0 ? divisions : ALL_DIVISIONS;
   const activeDivision = parseDivisionParam(
     searchParams.get("division") ?? defaultDivision,
   );
+  const resolvedDivision = visibleDivisions.includes(activeDivision)
+    ? activeDivision
+    : (visibleDivisions.includes(defaultDivision)
+        ? defaultDivision
+        : visibleDivisions[0] ?? "strider");
+
+  useEffect(() => {
+    if (resolvedDivision === activeDivision) {
+      return;
+    }
+
+    const params = new URLSearchParams(searchParams.toString());
+    if (resolvedDivision === "strider") {
+      params.delete("division");
+    } else {
+      params.set("division", resolvedDivision);
+    }
+
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }, [
+    activeDivision,
+    pathname,
+    resolvedDivision,
+    router,
+    searchParams,
+  ]);
 
   function selectDivision(division: Division) {
     const params = new URLSearchParams(searchParams.toString());
@@ -45,10 +76,15 @@ export function DivisionSubTabs({
   return (
     <Tabs
       onValueChange={(value) => selectDivision(parseDivisionParam(value))}
-      value={activeDivision}
+      value={resolvedDivision}
     >
-      <TabsList className="grid h-11 w-full grid-cols-3 rounded-2xl bg-black/[0.06] p-1">
-        {ALL_DIVISIONS.map((division) => (
+      <TabsList
+        className={cn(
+          "grid h-11 w-full rounded-2xl bg-black/[0.06] p-1",
+          visibleDivisions.length === 2 ? "grid-cols-2" : "grid-cols-3",
+        )}
+      >
+        {visibleDivisions.map((division) => (
           <TabsTrigger className={divisionTabClass} key={division} value={division}>
             {divisionLabel(division, true)}
           </TabsTrigger>
@@ -58,7 +94,23 @@ export function DivisionSubTabs({
   );
 }
 
-export function useActiveDivision(defaultDivision: Division = "strider"): Division {
+export function useActiveDivision(
+  defaultDivision: Division = "strider",
+  divisions: Division[] = ALL_DIVISIONS,
+): Division {
   const searchParams = useSearchParams();
-  return parseDivisionParam(searchParams.get("division") ?? defaultDivision);
+  const activeDivision = parseDivisionParam(
+    searchParams.get("division") ?? defaultDivision,
+  );
+  const visibleDivisions = divisions.length > 0 ? divisions : ALL_DIVISIONS;
+
+  if (visibleDivisions.includes(activeDivision)) {
+    return activeDivision;
+  }
+
+  if (visibleDivisions.includes(defaultDivision)) {
+    return defaultDivision;
+  }
+
+  return visibleDivisions[0] ?? "strider";
 }

@@ -1,12 +1,13 @@
 import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
-import { LogActivityForm } from "@/components/activities/log-activity-form";
+import { LogPageClient } from "@/components/activities/log-page-client";
 import {
   ActivityError,
   getEditActivityContext,
   getLogContext,
 } from "@/lib/activities-service";
+import { getParticipantBadgesPage } from "@/lib/participant-badges-service";
 
 type LogPageProps = {
   searchParams: Promise<{ edit?: string }>;
@@ -19,15 +20,32 @@ export default async function LogPage({ searchParams }: LogPageProps) {
   }
 
   const { edit } = await searchParams;
+  const userId = session.user.id;
+
+  const [context, badgesPage] = await Promise.all([
+    getLogContext(userId),
+    getParticipantBadgesPage(userId),
+  ]);
+
+  if (!badgesPage) {
+    redirect("/login");
+  }
 
   if (edit) {
     try {
-      const editActivity = await getEditActivityContext(session.user.id, edit);
+      const editActivity = await getEditActivityContext(userId, edit);
       if (!editActivity) {
         redirect("/log");
       }
 
-      return <LogActivityForm editActivity={editActivity} />;
+      return (
+        <LogPageClient
+          badgeCounts={badgesPage.badgeCounts}
+          badges={badgesPage.badges}
+          editActivity={editActivity}
+          logContext={context}
+        />
+      );
     } catch (error) {
       if (error instanceof ActivityError && error.status === 403) {
         redirect("/activities");
@@ -36,15 +54,11 @@ export default async function LogPage({ searchParams }: LogPageProps) {
     }
   }
 
-  const context = await getLogContext(session.user.id);
-
   return (
-    <LogActivityForm
-      allowOpenChallengeLogging={context.allowOpenChallengeLogging}
-      challengeStartDate={context.challengeStartDate}
-      defaultDate={context.defaultDate}
-      loggedDates={context.loggedDates}
-      selectableDays={context.selectableDays}
+    <LogPageClient
+      badgeCounts={badgesPage.badgeCounts}
+      badges={badgesPage.badges}
+      logContext={context}
     />
   );
 }

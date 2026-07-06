@@ -360,4 +360,48 @@ describe("computeStandingsFromData", () => {
     assert.equal(elite?.breakdown.starDay, 50);
     assert.equal(strider?.breakdown.starDay, 50);
   });
+
+  it("does not award a separate riser star pool before cutover", () => {
+    const standings = computeStandingsFromData(
+      makeInput({
+        today: "2026-07-06",
+        users: [
+          {
+            id: "riser-user",
+            name: "Ravi",
+            createdAt: new Date("2026-06-01"),
+            division: "riser",
+          },
+          {
+            id: "strider-user",
+            name: "Sam",
+            createdAt: new Date("2026-06-02"),
+            division: "strider",
+          },
+        ],
+        activities: [
+          {
+            userId: "riser-user",
+            activityDate: "2026-06-29",
+            steps: 12000,
+            basePoints: 40,
+            status: "approved",
+          },
+          {
+            userId: "strider-user",
+            activityDate: "2026-06-29",
+            steps: 13000,
+            basePoints: 45,
+            status: "approved",
+          },
+        ],
+      }),
+    );
+
+    const riserUser = standings.find((row) => row.userId === "riser-user");
+    const striderUser = standings.find((row) => row.userId === "strider-user");
+
+    assert.equal(riserUser?.breakdown.starDay, 0);
+    assert.equal(striderUser?.breakdown.starDay, 50);
+  });
 });

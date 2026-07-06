@@ -24,6 +24,7 @@ import {
   isRoyalHolder,
 } from "@/lib/standings";
 import { parseDivision, type Division } from "@/lib/divisions";
+import { getDivisionForDate } from "@/lib/division-as-of-cutover";
 import { distanceKmToStorage, parseDistanceKm } from "@/lib/distance";
 
 const ALLOWED_IMAGE_TYPES = new Set([
@@ -189,7 +190,11 @@ function buildStarOfDayKeys(
       continue;
     }
 
-    const division = userDivisions.get(activity.userId) ?? "strider";
+    const division = getDivisionForDate(
+      activity.userId,
+      userDivisions.get(activity.userId) ?? "strider",
+      activity.activityDate,
+    );
     const bucketKey = `${activity.activityDate}:${division}`;
     const dateMap = stepsByDateDivision.get(bucketKey) ?? new Map();
     dateMap.set(activity.userId, activity.steps);

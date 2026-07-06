@@ -18,7 +18,8 @@ import {
   getStarWinners,
 } from "@/components/leaderboard/period-leaderboard-view";
 import type { Division } from "@/lib/divisions";
-import { divisionLabel } from "@/lib/divisions";
+import { ALL_DIVISIONS, divisionLabel } from "@/lib/divisions";
+import { divisionsActiveOnDate } from "@/lib/group-rules";
 import type { PeriodLeaderboardEntry } from "@/lib/period-leaderboard";
 import type { ChallengePeriodContext, ChallengeWeekSummary } from "@/lib/period-leaderboard";
 import type { UserStanding } from "@/lib/standings";
@@ -108,6 +109,13 @@ export function LeaderboardHub({
     lastWeekWinners.length > 0 &&
     currentWeek?.weekNo !== lastEndedWeek.weekNo;
 
+  const periodDivisions =
+    activeTab === "daily" && currentDay
+      ? divisionsActiveOnDate(currentDay.date)
+      : activeTab === "weekly" && currentWeek
+        ? divisionsActiveOnDate(currentWeek.endDate)
+        : ALL_DIVISIONS;
+
   const headerSubtitle =
     activeTab === "daily" && currentDay
       ? `${formatDayTitle(currentDay.date)} · target ${currentDay.targetSteps.toLocaleString("en-IN")} steps`
@@ -163,7 +171,10 @@ export function LeaderboardHub({
         </div>
 
         <div className="space-y-4">
-          <DivisionSubTabs defaultDivision={viewerDivision} />
+          <DivisionSubTabs
+            defaultDivision={viewerDivision}
+            divisions={periodDivisions}
+          />
 
           <TabsContent className="mt-0" value="daily">
             {currentDay ? (

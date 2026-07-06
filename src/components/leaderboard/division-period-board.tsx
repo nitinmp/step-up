@@ -5,12 +5,13 @@ import {
   useActiveDivision,
 } from "@/components/leaderboard/division-sub-tabs";
 import { PeriodLeaderboardView } from "@/components/leaderboard/period-leaderboard-view";
-import type { Division } from "@/lib/divisions";
+import { ALL_DIVISIONS, type Division } from "@/lib/divisions";
 import type { PeriodLeaderboardEntry } from "@/lib/period-leaderboard";
 
 type DivisionPeriodBoardProps = {
   currentUserId: string;
   entriesByDivision: Record<Division, PeriodLeaderboardEntry[]>;
+  activeDivisions?: Division[];
   title: string;
   subtitle: string;
   metricLabel: string;
@@ -25,6 +26,7 @@ type DivisionPeriodBoardProps = {
 export function DivisionPeriodBoard({
   currentUserId,
   entriesByDivision,
+  activeDivisions = ALL_DIVISIONS,
   title,
   subtitle,
   metricLabel,
@@ -35,11 +37,11 @@ export function DivisionPeriodBoard({
   backHref,
   backLabel,
 }: DivisionPeriodBoardProps) {
-  const activeDivision = useActiveDivision("strider");
+  const activeDivision = useActiveDivision("strider", activeDivisions);
 
   return (
     <div className="space-y-4">
-      <DivisionSubTabs />
+      <DivisionSubTabs divisions={activeDivisions} />
       <PeriodLeaderboardView
         backHref={backHref}
         backLabel={backLabel}

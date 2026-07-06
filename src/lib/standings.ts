@@ -1,5 +1,7 @@
 import type { Division, Gender } from "./divisions";
 import { ALL_DIVISIONS, DEFAULT_DIVISION, parseDivision } from "./divisions";
+import { divisionsActiveOnDate } from "./group-rules";
+import { getDivisionForDate } from "./division-as-of-cutover";
 import { isBeastMode } from "./scoring";
 
 export type ChallengeConfigInput = {
@@ -305,9 +307,11 @@ export function computeStandingsFromData(
       continue;
     }
 
-    for (const division of DIVISIONS) {
+    for (const division of divisionsActiveOnDate(date)) {
       const divisionSteps = [...userSteps.entries()].filter(
-        ([userId]) => divisionsByUser.get(userId) === division,
+        ([userId]) =>
+          getDivisionForDate(userId, divisionsByUser.get(userId) ?? DEFAULT_DIVISION, date) ===
+          division,
       );
       const maxSteps = Math.max(...divisionSteps.map(([, steps]) => steps), 0);
       if (maxSteps <= 0) {
@@ -337,11 +341,19 @@ export function computeStandingsFromData(
       continue;
     }
 
-    for (const division of DIVISIONS) {
+    const weekEnd = weekEndDates.get(weekNo);
+    if (!weekEnd) {
+      continue;
+    }
+
+    for (const division of divisionsActiveOnDate(weekEnd)) {
       const weeklyTotals = new Map<string, number>();
 
       for (const user of input.users) {
-        if (divisionsByUser.get(user.id) !== division) {
+        if (
+          getDivisionForDate(user.id, divisionsByUser.get(user.id) ?? DEFAULT_DIVISION, weekEnd) !==
+          division
+        ) {
           continue;
         }
         weeklyTotals.set(

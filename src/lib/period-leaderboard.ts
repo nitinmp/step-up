@@ -1,5 +1,6 @@
 import type { Division } from "./divisions";
 import { parseDivision } from "./divisions";
+import { getDivisionForDate } from "./division-as-of-cutover";
 import { isBeastMode } from "./scoring";
 import type {
   ActivityInput,
@@ -106,8 +107,15 @@ function rankEntries(
   }));
 }
 
-function usersInDivision(users: UserInput[], division: Division): UserInput[] {
-  return users.filter((user) => parseDivision(user.division) === division);
+function usersInDivision(
+  users: UserInput[],
+  division: Division,
+  asOfDate: string,
+): UserInput[] {
+  return users.filter(
+    (user) =>
+      getDivisionForDate(user.id, parseDivision(user.division), asOfDate) === division,
+  );
 }
 
 export function computeDailyLeaderboard(input: {
@@ -124,7 +132,7 @@ export function computeDailyLeaderboard(input: {
     return [];
   }
 
-  const divisionUsers = usersInDivision(input.users, input.division);
+  const divisionUsers = usersInDivision(input.users, input.division, input.date);
 
   const approvedByUser = new Map<string, ActivityInput>();
   for (const activity of input.activities) {
@@ -180,9 +188,8 @@ export function computeWeeklyLeaderboard(input: {
     return [];
   }
 
-  const divisionUsers = usersInDivision(input.users, input.division);
-
   const weekEnd = weekDates.reduce((latest, date) => (date > latest ? date : latest));
+  const divisionUsers = usersInDivision(input.users, input.division, weekEnd);
   const weekEnded = weekEnd < input.calendarToday;
   const weekDayMap = new Map(
     input.challengeDays

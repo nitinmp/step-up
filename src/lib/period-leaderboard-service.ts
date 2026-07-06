@@ -6,6 +6,7 @@ import {
   filterStandingsByDivision,
 } from "./standings";
 import { ALL_DIVISIONS } from "./divisions";
+import { divisionsActiveOnDate } from "./group-rules";
 import { loadScoringDataset } from "./scoring-dataset";
 import {
   buildChallengePeriodContext,
@@ -29,7 +30,7 @@ function computeDailyForDivisions(
   date: string,
 ): Record<Division, PeriodLeaderboardEntry[]> {
   const entries = emptyDivisionRecord<PeriodLeaderboardEntry[]>();
-  for (const division of ALL_DIVISIONS) {
+  for (const division of divisionsActiveOnDate(date)) {
     entries[division] = computeDailyLeaderboard({
       date,
       division,
@@ -47,8 +48,13 @@ function computeWeeklyForDivisions(
   dataset: Awaited<ReturnType<typeof loadScoringDataset>>,
   weekNo: number,
 ): Record<Division, PeriodLeaderboardEntry[]> {
+  const week = getWeekSummary(dataset.challengeDays, weekNo);
   const entries = emptyDivisionRecord<PeriodLeaderboardEntry[]>();
-  for (const division of ALL_DIVISIONS) {
+  if (!week) {
+    return entries;
+  }
+
+  for (const division of divisionsActiveOnDate(week.endDate)) {
     entries[division] = computeWeeklyLeaderboard({
       weekNo,
       division,

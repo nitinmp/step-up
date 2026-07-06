@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { auth } from "@/auth";
 import { DivisionPeriodBoard } from "@/components/leaderboard/division-period-board";
 import { formatDayTitle } from "@/components/leaderboard/period-leaderboard-view";
+import { divisionsActiveOnDate } from "@/lib/group-rules";
 import { getDailyLeaderboardPage } from "@/lib/period-leaderboard-service";
 
 type DayLeaderboardPageProps = {
@@ -33,6 +34,7 @@ export default async function DayLeaderboardPage({ params }: DayLeaderboardPageP
       }
     >
       <DivisionPeriodBoard
+        activeDivisions={divisionsActiveOnDate(page.day.date)}
         backHref="/leaderboard/days"
         backLabel="All past days"
         currentUserId={session.user.id}

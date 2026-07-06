@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { ParticipantAvatar } from "@/components/app/participant-avatar";
+import { ParticipantProfileLink } from "@/components/app/participant-profile-link";
 import type { PeriodLeaderboardEntry } from "@/lib/period-leaderboard";
 import { formatDisplayDate } from "@/lib/dates";
 import { cn } from "@/lib/cn";
@@ -86,18 +87,22 @@ export function StarWinnerBanner({
               className="flex items-center gap-3 rounded-2xl bg-white/70 px-4 py-3"
               key={winner.userId}
             >
-              <ParticipantAvatar
-                name={winner.name}
-                profileImageUrl={winner.profileImageUrl}
-                size="md"
-              />
+              <ParticipantProfileLink userId={winner.userId}>
+                <ParticipantAvatar
+                  name={winner.name}
+                  profileImageUrl={winner.profileImageUrl}
+                  size="md"
+                />
+              </ParticipantProfileLink>
               <div className="min-w-0 flex-1">
-                <p className="truncate font-semibold text-foreground">
-                  {winner.name}
-                  {isCurrentUser ? (
-                    <span className="ml-2 text-sm font-semibold text-brand">You</span>
-                  ) : null}
-                </p>
+                <ParticipantProfileLink className="block" userId={winner.userId}>
+                  <p className="truncate font-semibold text-foreground">
+                    {winner.name}
+                    {isCurrentUser ? (
+                      <span className="ml-2 text-sm font-semibold text-brand">You</span>
+                    ) : null}
+                  </p>
+                </ParticipantProfileLink>
                 <p className="mt-0.5 text-sm text-muted">
                   {winner.steps.toLocaleString("en-IN")} steps
                   {winners.length > 1 ? " · tied for top" : ""}
@@ -274,16 +279,20 @@ function PeriodPodiumCard({
         #{row.rank} {row.rank === 1 ? "🥇" : row.rank === 2 ? "🥈" : "🥉"}
       </p>
       <div className="mt-3 flex justify-center">
-        <ParticipantAvatar
-          name={row.name}
-          profileImageUrl={row.profileImageUrl}
-          size="lg"
-        />
+        <ParticipantProfileLink userId={row.userId}>
+          <ParticipantAvatar
+            name={row.name}
+            profileImageUrl={row.profileImageUrl}
+            size="lg"
+          />
+        </ParticipantProfileLink>
       </div>
-      <p className="mt-3 truncate text-lg font-semibold text-foreground">
-        {row.name}
-        {isCurrentUser ? " (You)" : ""}
-      </p>
+      <ParticipantProfileLink className="block" userId={row.userId}>
+        <p className="mt-3 truncate text-lg font-semibold text-foreground">
+          {row.name}
+          {isCurrentUser ? " (You)" : ""}
+        </p>
+      </ParticipantProfileLink>
       <p className="mt-3 text-3xl font-semibold tabular-nums text-foreground">
         {row.steps.toLocaleString("en-IN")}
       </p>
@@ -333,19 +342,23 @@ function PeriodLeaderboardRow({
         {row.rank}
       </div>
 
-      <ParticipantAvatar
-        name={row.name}
-        profileImageUrl={row.profileImageUrl}
-        size="md"
-      />
+      <ParticipantProfileLink userId={row.userId}>
+        <ParticipantAvatar
+          name={row.name}
+          profileImageUrl={row.profileImageUrl}
+          size="md"
+        />
+      </ParticipantProfileLink>
 
       <div className="min-w-0 flex-1">
-        <p className="truncate font-medium text-foreground">
-          {row.name}
-          {isCurrentUser ? (
-            <span className="ml-2 text-sm font-semibold text-brand">You</span>
-          ) : null}
-        </p>
+        <ParticipantProfileLink className="block" userId={row.userId}>
+          <p className="truncate font-medium text-foreground">
+            {row.name}
+            {isCurrentUser ? (
+              <span className="ml-2 text-sm font-semibold text-brand">You</span>
+            ) : null}
+          </p>
+        </ParticipantProfileLink>
         <p className="mt-0.5 text-xs text-muted">
           {row.isStarWinner ? (
             <span className="font-semibold text-amber-800">⭐ Star winner · </span>

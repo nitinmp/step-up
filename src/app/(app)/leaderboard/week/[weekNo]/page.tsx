@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { auth } from "@/auth";
 import { DivisionPeriodBoard } from "@/components/leaderboard/division-period-board";
 import { formatWeekTitle } from "@/components/leaderboard/period-leaderboard-view";
+import { divisionsActiveOnDate } from "@/lib/group-rules";
 import { getWeeklyLeaderboardPage } from "@/lib/period-leaderboard-service";
 
 type WeekLeaderboardPageProps = {
@@ -37,6 +38,7 @@ export default async function WeekLeaderboardPage({ params }: WeekLeaderboardPag
       }
     >
       <DivisionPeriodBoard
+        activeDivisions={divisionsActiveOnDate(page.week.endDate)}
         backHref="/leaderboard/weeks"
         backLabel="All past weeks"
         currentUserId={session.user.id}

@@ -16,16 +16,7 @@ type SelectableDay = {
   targetSteps: number;
 };
 
-type LogActivityFormProps = {
-  defaultDate?: string;
-  selectableDays?: SelectableDay[];
-  loggedDates?: string[];
-  challengeStartDate?: string;
-  allowOpenChallengeLogging?: boolean;
-  editActivity?: EditActivityContext;
-};
-
-type SubmitResult = {
+export type LogSubmitResult = {
   basePoints: number;
   isStarOfDay: boolean;
   isBeast: boolean;
@@ -38,6 +29,17 @@ type SubmitResult = {
     consistency: number;
   } | null;
   mode: "create" | "edit";
+};
+
+type LogActivityFormProps = {
+  defaultDate?: string;
+  selectableDays?: SelectableDay[];
+  loggedDates?: string[];
+  challengeStartDate?: string;
+  allowOpenChallengeLogging?: boolean;
+  editActivity?: EditActivityContext;
+  embedded?: boolean;
+  onSuccess?: (result: LogSubmitResult) => void;
 };
 
 async function compressImage(file: File): Promise<File> {
@@ -105,7 +107,7 @@ export function LogActivityForm(props: LogActivityFormProps) {
   );
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<SubmitResult | null>(null);
+  const [result, setResult] = useState<LogSubmitResult | null>(null);
 
   const loggedDateSet = useMemo(() => new Set(loggedDates), [loggedDates]);
 
@@ -209,7 +211,7 @@ export function LogActivityForm(props: LogActivityFormProps) {
         return;
       }
 
-      setResult({
+      const editResult: LogSubmitResult = {
         basePoints: payload.basePoints ?? 0,
         isStarOfDay: false,
         isBeast: payload.isBeast ?? false,
@@ -217,7 +219,14 @@ export function LogActivityForm(props: LogActivityFormProps) {
         rank: null,
         breakdown: null,
         mode: "edit",
-      });
+      };
+
+      if (props.onSuccess) {
+        props.onSuccess(editResult);
+        return;
+      }
+
+      setResult(editResult);
       return;
     }
 
@@ -235,7 +244,7 @@ export function LogActivityForm(props: LogActivityFormProps) {
       body: formData,
     });
 
-    const payload = (await response.json()) as SubmitResult & { error?: string };
+    const payload = (await response.json()) as LogSubmitResult & { error?: string };
     setLoading(false);
 
     if (!response.ok) {
@@ -243,7 +252,7 @@ export function LogActivityForm(props: LogActivityFormProps) {
       return;
     }
 
-    setResult({
+    const createResult: LogSubmitResult = {
       basePoints: payload.basePoints,
       isStarOfDay: payload.isStarOfDay,
       isBeast: payload.isBeast,
@@ -251,7 +260,14 @@ export function LogActivityForm(props: LogActivityFormProps) {
       rank: payload.rank,
       breakdown: payload.breakdown ?? null,
       mode: "create",
-    });
+    };
+
+    if (props.onSuccess) {
+      props.onSuccess(createResult);
+      return;
+    }
+
+    setResult(createResult);
   }
 
   if (result) {
@@ -333,7 +349,7 @@ export function LogActivityForm(props: LogActivityFormProps) {
     );
   }
 
-  if (!isEdit && selectableDays.length === 0) {
+  if (!props.embedded && !isEdit && selectableDays.length === 0) {
     return (
       <section className="rounded-3xl border border-black/5 bg-surface p-6">
         <h1 className="text-2xl font-semibold text-foreground">Log activity</h1>
@@ -348,18 +364,8 @@ export function LogActivityForm(props: LogActivityFormProps) {
     );
   }
 
-  return (
-    <section className="rounded-3xl border border-black/5 bg-surface p-6">
-      <h1 className="text-2xl font-semibold text-foreground">
-        {isEdit ? "Edit activity" : "Log activity"}
-      </h1>
-      <p className="mt-2 text-sm text-muted">
-        {isEdit
-          ? "Update steps, distance, or screenshot while your entry is awaiting approval."
-          : "One entry per day. Add steps and distance from your fitness app screenshot."}
-      </p>
-
-      <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
+  const form = (
+      <form className={props.embedded ? "space-y-4 pb-2" : "mt-6 space-y-4"} onSubmit={handleSubmit}>
         {isEdit && selectedDay ? (
           <div className="block space-y-2">
             <span className="text-sm font-medium text-foreground">Date</span>
@@ -467,6 +473,32 @@ export function LogActivityForm(props: LogActivityFormProps) {
               : "Log activity"}
         </button>
       </form>
+  );
+
+  if (props.embedded) {
+    return (
+      <div>
+        <p className="mb-4 text-sm text-muted">
+          {isEdit
+            ? "Update steps, distance, or screenshot while your entry is awaiting approval."
+            : "One entry per day. Add steps and distance from your fitness app screenshot."}
+        </p>
+        {form}
+      </div>
+    );
+  }
+
+  return (
+    <section className="rounded-3xl border border-black/5 bg-surface p-6">
+      <h1 className="text-2xl font-semibold text-foreground">
+        {isEdit ? "Edit activity" : "Log activity"}
+      </h1>
+      <p className="mt-2 text-sm text-muted">
+        {isEdit
+          ? "Update steps, distance, or screenshot while your entry is awaiting approval."
+          : "One entry per day. Add steps and distance from your fitness app screenshot."}
+      </p>
+      {form}
     </section>
   );
 }
