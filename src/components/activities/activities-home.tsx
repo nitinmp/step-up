@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
@@ -16,7 +15,6 @@ import type {
 } from "@/lib/activities-home-types";
 import { achievementsToDisplay } from "@/lib/achievement-display";
 import type { UserAchievementState } from "@/lib/achievement-badges";
-import { photoProxyUrl } from "@/lib/blob-storage";
 import { formatDisplayDate } from "@/lib/dates";
 import { formatDistanceKm } from "@/lib/distance";
 import type { Division } from "@/lib/divisions";
@@ -46,6 +44,7 @@ export type ActivitiesHomeProps = {
 export function ActivitiesHome(props: ActivitiesHomeProps) {
   const [showAllActivities, setShowAllActivities] = useState(false);
   const [unlockQueue, setUnlockQueue] = useState<UserAchievementState[]>([]);
+  const activitiesPreviewLimit = 7;
 
   useEffect(() => {
     const raw = sessionStorage.getItem("stepup:pending-unlocks");
@@ -65,7 +64,7 @@ export function ActivitiesHome(props: ActivitiesHomeProps) {
 
   const visibleActivities = showAllActivities
     ? props.loggedActivities
-    : props.loggedActivities.slice(0, 3);
+    : props.loggedActivities.slice(0, activitiesPreviewLimit);
 
   const badgeDisplays = achievementsToDisplay(props.badgePreview);
 
@@ -115,7 +114,7 @@ export function ActivitiesHome(props: ActivitiesHomeProps) {
           <h2 className="text-base font-semibold text-foreground">
             Your activities
           </h2>
-          {props.loggedActivities.length > 3 ? (
+          {props.loggedActivities.length > activitiesPreviewLimit ? (
             <button
               className="text-sm font-medium text-brand"
               onClick={() => setShowAllActivities((value) => !value)}
@@ -464,16 +463,6 @@ function ActivityCard({
               {formatDistanceKm(activity.distanceKm)}
             </p>
           </div>
-          {activity.photoUrl ? (
-            <Image
-              alt={`Activity photo for ${formatDisplayDate(day.date)}`}
-              className="size-14 rounded-xl object-cover"
-              height={56}
-              src={photoProxyUrl(activity.photoUrl)}
-              unoptimized
-              width={56}
-            />
-          ) : null}
         </div>
       </div>
 
