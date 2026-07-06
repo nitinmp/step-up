@@ -29,7 +29,6 @@ import {
   computeAllUserAchievements,
   selectBadgePreview,
 } from "@/lib/achievement-badges";
-import { computeAchievementUnlocks } from "@/lib/achievement-unlock";
 import {
   computeDashboardStats,
   computeRankChase,
@@ -659,77 +658,6 @@ export async function createActivity(input: {
   const standings = await computeStandings();
   const standing = getStandingForUser(standings, input.userId) ?? null;
 
-  const dataset = await loadScoringDataset();
-  const beforeActivities = dataset.activities.filter(
-    (activity) =>
-      !(
-        activity.userId === input.userId &&
-        activity.activityDate === input.activityDate
-      ),
-  );
-  const afterActivities = [
-    ...beforeActivities.filter(
-      (activity) =>
-        !(
-          activity.userId === input.userId &&
-          activity.activityDate === input.activityDate
-        ),
-    ),
-    {
-      userId: input.userId,
-      activityDate: input.activityDate,
-      steps: stepsValue,
-      basePoints,
-      status: "approved",
-    },
-  ];
-
-  const distanceKmNum = Number(distanceKmToStorage(distanceKm));
-  const distanceByActivity = new Map<string, number>();
-  for (const activity of afterActivities) {
-    if (activity.status === "approved") {
-      distanceByActivity.set(
-        `${activity.userId}:${activity.activityDate}`,
-        activity.userId === input.userId &&
-          activity.activityDate === input.activityDate
-          ? distanceKmNum
-          : Math.round(activity.steps * 0.000762 * 1000) / 1000,
-      );
-    }
-  }
-
-  const cumulativeKm = afterActivities
-    .filter(
-      (activity) =>
-        activity.userId === input.userId && activity.status === "approved",
-    )
-    .reduce(
-      (sum, activity) =>
-        sum +
-        (distanceByActivity.get(`${activity.userId}:${activity.activityDate}`) ??
-          0),
-      0,
-    );
-
-  let newlyUnlockedBadges: Awaited<
-    ReturnType<typeof computeAchievementUnlocks>
-  > = [];
-  try {
-    newlyUnlockedBadges = computeAchievementUnlocks({
-      userId: input.userId,
-      dataset,
-      standing,
-      cumulativeKm,
-      beforeActivities,
-      afterActivities,
-      newSteps: stepsValue,
-      newActivityDate: input.activityDate,
-      distanceByActivity,
-    });
-  } catch (error) {
-    console.error("Failed to compute achievement unlocks after log", error);
-  }
-
   return {
     activity: created,
     day,
@@ -740,7 +668,6 @@ export async function createActivity(input: {
       config.beastMultiplier,
     ),
     standing,
-    newlyUnlockedBadges,
   };
 }
 

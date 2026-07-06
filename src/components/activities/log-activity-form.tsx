@@ -16,8 +16,6 @@ type SelectableDay = {
   targetSteps: number;
 };
 
-import type { UserAchievementState } from "@/lib/achievement-badges";
-
 export type LogSubmitResult = {
   basePoints: number;
   isStarOfDay: boolean;
@@ -31,7 +29,6 @@ export type LogSubmitResult = {
     consistency: number;
   } | null;
   mode: "create" | "edit";
-  newlyUnlockedBadges?: UserAchievementState[];
 };
 
 type LogActivityFormProps = {
@@ -263,7 +260,6 @@ export function LogActivityForm(props: LogActivityFormProps) {
       rank: payload.rank,
       breakdown: payload.breakdown ?? null,
       mode: "create",
-      newlyUnlockedBadges: payload.newlyUnlockedBadges,
     };
 
     if (props.onSuccess) {

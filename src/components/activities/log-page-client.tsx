@@ -47,7 +47,6 @@ export function LogPageClient({
   const router = useRouter();
   const isEdit = Boolean(editActivity);
   const [drawerOpen, setDrawerOpen] = useState(isEdit);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [formKey, setFormKey] = useState(0);
 
   const achievementDisplays = useMemo(
@@ -89,7 +88,6 @@ export function LogPageClient({
     if (!canLog) {
       return;
     }
-    setSuccessMessage(null);
     setDrawerOpen(true);
   }
 
@@ -105,32 +103,6 @@ export function LogPageClient({
       fireActivityLogConfetti();
     }
 
-    if (result.newlyUnlockedBadges && result.newlyUnlockedBadges.length > 0) {
-      sessionStorage.setItem(
-        "stepup:pending-unlocks",
-        JSON.stringify(result.newlyUnlockedBadges),
-      );
-    }
-
-    const bonusPoints =
-      (result.breakdown?.starDay ?? 0) +
-      (result.breakdown?.weekStar ?? 0) +
-      (result.breakdown?.consistency ?? 0);
-
-    if (result.mode === "edit") {
-      setSuccessMessage(
-        `Activity updated · +${result.basePoints} base points${result.isBeast ? " · Beast Mode unlocked" : ""}`,
-      );
-    } else {
-      setSuccessMessage(
-        bonusPoints > 0
-          ? `Logged · +${result.basePoints} base · +${bonusPoints} bonus points`
-          : result.isStarOfDay
-            ? `Logged · +${result.basePoints} base points · Star of the Day so far`
-            : `Logged · +${result.basePoints} base points · pending approval`,
-      );
-    }
-
     setDrawerOpen(false);
     setFormKey((value) => value + 1);
     router.refresh();
@@ -142,12 +114,6 @@ export function LogPageClient({
 
   return (
     <div className="space-y-6">
-      {successMessage ? (
-        <div className="rounded-2xl border border-brand/15 bg-brand/5 px-4 py-3 text-sm text-foreground">
-          {successMessage}
-        </div>
-      ) : null}
-
       <button
         className={cn(
           "flex w-full items-center justify-center gap-2 rounded-2xl bg-brand px-4 py-4 text-base font-semibold text-white shadow-sm transition hover:bg-brand-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2",
