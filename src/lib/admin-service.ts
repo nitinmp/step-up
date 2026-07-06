@@ -705,6 +705,40 @@ export async function resetAdminUserPassword(
   return updated;
 }
 
+export async function deleteAdminActivity(activityId: string) {
+  const db = getDb();
+
+  const [existing] = await db
+    .select({
+      id: activities.id,
+      status: activities.status,
+      photoUrl: activities.photoUrl,
+      activityDate: activities.activityDate,
+      userName: users.name,
+    })
+    .from(activities)
+    .innerJoin(users, eq(users.id, activities.userId))
+    .where(eq(activities.id, activityId))
+    .limit(1);
+
+  if (!existing) {
+    throw new ActivityError("Activity not found.", 404);
+  }
+
+  if (existing.status !== "disapproved") {
+    throw new ActivityError("Only disapproved activities can be deleted.", 400);
+  }
+
+  await db.delete(activities).where(eq(activities.id, activityId));
+  await deleteBlobUrl(existing.photoUrl);
+
+  return {
+    deletedActivityId: existing.id,
+    userName: existing.userName,
+    activityDate: existing.activityDate,
+  };
+}
+
 export async function deleteAdminUser(userId: string, actingAdminId: string) {
   return deleteUserAndData(userId, actingAdminId);
 }

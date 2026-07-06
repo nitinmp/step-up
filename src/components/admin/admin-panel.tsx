@@ -351,6 +351,35 @@ export function AdminPanel({
     router.refresh();
   }
 
+  async function deleteActivity(row: AdminActivityRow) {
+    setBusyId(row.id);
+    setError(null);
+    setMessage(null);
+
+    const response = await fetch(`/api/admin/activities/${row.id}`, {
+      method: "DELETE",
+    });
+
+    const payload = (await response.json()) as {
+      error?: string;
+      userName?: string;
+      activityDate?: string;
+    };
+
+    setBusyId(null);
+
+    if (!response.ok) {
+      setError(payload.error ?? "Could not delete activity.");
+      return;
+    }
+
+    setMessage(
+      `${payload.userName ?? row.userName} · ${formatDisplayDate(payload.activityDate ?? row.activityDate)} deleted.`,
+    );
+    await refreshActivities();
+    router.refresh();
+  }
+
   async function patchActivityEdit(
     id: string,
     input: {
@@ -755,6 +784,7 @@ export function AdminPanel({
           onCreateActivity={createParticipantActivity}
           onFilterOpen={() => setFiltersOpen(true)}
           onLogForParticipantOpenChange={setLogForParticipantOpen}
+          onDelete={deleteActivity}
           onDisapprove={(row, note) =>
             patchActivity(
               row.id,
@@ -1046,6 +1076,7 @@ function ActivitiesTab({
   reviewTab,
   onPreviewPhoto,
   onApprove,
+  onDelete,
   onDisapprove,
   onEdit,
   busyId,
@@ -1073,6 +1104,7 @@ function ActivitiesTab({
   reviewTab: "review" | "approved";
   onPreviewPhoto: (url: string) => void;
   onApprove: (row: AdminActivityRow) => void;
+  onDelete: (row: AdminActivityRow) => void;
   onDisapprove: (row: AdminActivityRow, note: string) => void;
   onEdit: (
     row: AdminActivityRow,
@@ -1168,6 +1200,7 @@ function ActivitiesTab({
             challengeDays={challengeDays}
             key={row.id}
             onApprove={() => onApprove(row)}
+            onDelete={() => onDelete(row)}
             onDisapprove={(note) => onDisapprove(row, note)}
             onEdit={(steps, distanceKm, activityDate, photo) =>
               onEdit(row, steps, distanceKm, activityDate, photo)
@@ -1271,6 +1304,7 @@ function ActivityAdminCard({
   reviewTab,
   onPreviewPhoto,
   onApprove,
+  onDelete,
   onDisapprove,
   onEdit,
   busy,
@@ -1280,6 +1314,7 @@ function ActivityAdminCard({
   reviewTab: "review" | "approved";
   onPreviewPhoto: () => void;
   onApprove: () => void;
+  onDelete: () => void;
   onDisapprove: (note: string) => void;
   onEdit: (
     steps: string,
@@ -1296,6 +1331,7 @@ function ActivityAdminCard({
   const [note, setNote] = useState(row.adminNote ?? "");
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
   function resetEditForm() {
     setSteps(String(row.steps));
@@ -1339,6 +1375,20 @@ function ActivityAdminCard({
 
   return (
     <article className="rounded-2xl border border-black/5 bg-surface p-3">
+      <ConfirmDialog
+        busy={busy}
+        confirmLabel="Delete entry"
+        description={`Delete ${row.userName}'s disapproved entry for ${formatDisplayDate(row.activityDate)}? This removes the activity and proof photo permanently. The participant can log that day again.`}
+        onCancel={() => setConfirmDeleteOpen(false)}
+        onConfirm={() => {
+          setConfirmDeleteOpen(false);
+          onDelete();
+        }}
+        open={confirmDeleteOpen}
+        title="Delete disapproved entry?"
+        variant="danger"
+      />
+
       <div className="flex gap-3">
         <button
           className="relative h-20 w-20 shrink-0 overflow-hidden rounded-2xl border border-black/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
@@ -1476,9 +1526,20 @@ function ActivityAdminCard({
               </ActionButton>
             </>
           ) : (
-            <ActionButton disabled={busy} onClick={onApprove} variant="primary">
-              {row.status === "disapproved" ? "Re-approve" : "Approve"}
-            </ActionButton>
+            <>
+              <ActionButton disabled={busy} onClick={onApprove} variant="primary">
+                {row.status === "disapproved" ? "Re-approve" : "Approve"}
+              </ActionButton>
+              {row.status === "disapproved" ? (
+                <ActionButton
+                  disabled={busy}
+                  onClick={() => setConfirmDeleteOpen(true)}
+                  variant="danger"
+                >
+                  Delete
+                </ActionButton>
+              ) : null}
+            </>
           )}
         </div>
       )}

@@ -2,7 +2,7 @@ import { BlobError } from "@vercel/blob";
 import { NextResponse } from "next/server";
 
 import { requireAdminSession } from "@/lib/admin-auth";
-import { updateAdminActivity } from "@/lib/admin-service";
+import { deleteAdminActivity, updateAdminActivity } from "@/lib/admin-service";
 import { ActivityError } from "@/lib/activities-service";
 
 type RouteContext = {
@@ -63,6 +63,39 @@ async function parseUpdateBody(request: Request): Promise<UpdateBody> {
     return (await request.json()) as UpdateBody;
   } catch {
     throw new ActivityError("Invalid request body.", 400);
+  }
+}
+
+export async function DELETE(_request: Request, context: RouteContext) {
+  const authResult = await requireAdminSession();
+  if ("error" in authResult) {
+    return NextResponse.json(
+      { error: authResult.error },
+      { status: authResult.status },
+    );
+  }
+
+  const { id } = await context.params;
+
+  try {
+    const result = await deleteAdminActivity(id);
+
+    return NextResponse.json({
+      ok: true,
+      deletedActivityId: result.deletedActivityId,
+      userName: result.userName,
+      activityDate: result.activityDate,
+    });
+  } catch (error) {
+    if (error instanceof ActivityError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
+
+    console.error(error);
+    return NextResponse.json(
+      { error: "Could not delete activity." },
+      { status: 500 },
+    );
   }
 }
 
