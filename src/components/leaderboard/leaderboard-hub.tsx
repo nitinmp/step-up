@@ -12,13 +12,15 @@ import {
 } from "@/components/leaderboard/division-sub-tabs";
 import {
   PeriodLeaderboardView,
+  StarWinnerBanner,
   formatDayTitle,
   formatWeekTitle,
+  getStarWinners,
 } from "@/components/leaderboard/period-leaderboard-view";
 import type { Division } from "@/lib/divisions";
 import { divisionLabel } from "@/lib/divisions";
 import type { PeriodLeaderboardEntry } from "@/lib/period-leaderboard";
-import type { ChallengePeriodContext } from "@/lib/period-leaderboard";
+import type { ChallengePeriodContext, ChallengeWeekSummary } from "@/lib/period-leaderboard";
 import type { UserStanding } from "@/lib/standings";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -43,8 +45,25 @@ type LeaderboardHubProps = {
   standingsByDivision: Record<Division, UserStanding[]>;
   currentDaily: Record<Division, PeriodLeaderboardEntry[]>;
   currentWeekly: Record<Division, PeriodLeaderboardEntry[]>;
+  lastEndedWeek: ChallengeWeekSummary | null;
+  lastWeeklyByDivision: Record<Division, PeriodLeaderboardEntry[]>;
+  starOfDayPoints: number;
+  starOfWeekPoints: number;
   viewerDivision: Division;
 };
+
+function periodBoardHref(
+  kind: "day" | "week",
+  id: string | number,
+  division: Division,
+): string {
+  const base =
+    kind === "day" ? `/leaderboard/day/${id}` : `/leaderboard/week/${id}`;
+  if (division === "strider") {
+    return base;
+  }
+  return `${base}?division=${division}`;
+}
 
 function parseBoardTab(value: string | null): BoardTab {
   if (value === "weekly" || value === "overall") {
@@ -59,6 +78,10 @@ export function LeaderboardHub({
   standingsByDivision,
   currentDaily,
   currentWeekly,
+  lastEndedWeek,
+  lastWeeklyByDivision,
+  starOfDayPoints,
+  starOfWeekPoints,
   viewerDivision,
 }: LeaderboardHubProps) {
   const router = useRouter();
@@ -77,6 +100,13 @@ export function LeaderboardHub({
     : false;
 
   const divisionStandings = standingsByDivision[activeDivision];
+  const lastWeekWinners = lastEndedWeek
+    ? getStarWinners(lastWeeklyByDivision[activeDivision])
+    : [];
+  const showLastWeekStars =
+    lastEndedWeek !== null &&
+    lastWeekWinners.length > 0 &&
+    currentWeek?.weekNo !== lastEndedWeek.weekNo;
 
   const headerSubtitle =
     activeTab === "daily" && currentDay
@@ -146,6 +176,8 @@ export function LeaderboardHub({
                 metricLabel="steps today"
                 periodEnded={dailyEnded}
                 showBasePoints
+                starBonusPoints={starOfDayPoints}
+                starPeriod="day"
                 subtitle={`${formatDayTitle(currentDay.date)} · target ${currentDay.targetSteps.toLocaleString("en-IN")} steps`}
                 title="Today’s board"
               />
@@ -156,21 +188,73 @@ export function LeaderboardHub({
 
           <TabsContent className="mt-0" value="weekly">
             {currentWeek ? (
-              <PeriodLeaderboardView
-                archiveHref="/leaderboard/weeks"
-                archiveLabel="Past weeks"
-                currentUserId={currentUserId}
-                embedded
-                entries={currentWeekly[activeDivision]}
-                metricLabel="steps this week"
-                periodEnded={weeklyEnded}
-                subtitle={formatWeekTitle(
-                  currentWeek.weekNo,
-                  currentWeek.startDate,
-                  currentWeek.endDate,
+              <div className="space-y-4">
+                {showLastWeekStars && lastEndedWeek ? (
+                  <StarWinnerBanner
+                    bonusPoints={starOfWeekPoints}
+                    currentUserId={currentUserId}
+                    detailHref={periodBoardHref(
+                      "week",
+                      lastEndedWeek.weekNo,
+                      activeDivision,
+                    )}
+                    detailLabel={`View Week ${lastEndedWeek.weekNo} board`}
+                    subtitle={formatWeekTitle(
+                      lastEndedWeek.weekNo,
+                      lastEndedWeek.startDate,
+                      lastEndedWeek.endDate,
+                    )}
+                    title={`Star of the Week · ${divisionLabel(activeDivision, true)}`}
+                    winners={lastWeekWinners}
+                  />
+                ) : null}
+
+                {showLastWeekStars ? (
+                  <div>
+                    <h2 className="mb-3 text-sm font-semibold uppercase tracking-[0.15em] text-muted">
+                      {formatWeekTitle(
+                        currentWeek.weekNo,
+                        currentWeek.startDate,
+                        currentWeek.endDate,
+                      )}{" "}
+                      · live
+                    </h2>
+                    <PeriodLeaderboardView
+                      archiveHref="/leaderboard/weeks"
+                      archiveLabel="Past weeks"
+                      currentUserId={currentUserId}
+                      embedded
+                      entries={currentWeekly[activeDivision]}
+                      metricLabel="steps this week"
+                      periodEnded={weeklyEnded}
+                      subtitle={formatWeekTitle(
+                        currentWeek.weekNo,
+                        currentWeek.startDate,
+                        currentWeek.endDate,
+                      )}
+                      title="This week’s board"
+                    />
+                  </div>
+                ) : (
+                  <PeriodLeaderboardView
+                    archiveHref="/leaderboard/weeks"
+                    archiveLabel="Past weeks"
+                    currentUserId={currentUserId}
+                    embedded
+                    entries={currentWeekly[activeDivision]}
+                    metricLabel="steps this week"
+                    periodEnded={weeklyEnded}
+                    starBonusPoints={starOfWeekPoints}
+                    starPeriod="week"
+                    subtitle={formatWeekTitle(
+                      currentWeek.weekNo,
+                      currentWeek.startDate,
+                      currentWeek.endDate,
+                    )}
+                    title="This week’s board"
+                  />
                 )}
-                title="This week’s board"
-              />
+              </div>
             ) : (
               <EmptyPeriodState message="No challenge week is active yet." />
             )}

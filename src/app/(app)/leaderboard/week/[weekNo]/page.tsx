@@ -43,6 +43,8 @@ export default async function WeekLeaderboardPage({ params }: WeekLeaderboardPag
         entriesByDivision={page.entriesByDivision}
         metricLabel="steps"
         periodEnded={periodEnded}
+        starBonusPoints={page.starOfWeekPoints}
+        starPeriod="week"
         subtitle={formatWeekTitle(
           page.week.weekNo,
           page.week.startDate,

@@ -15,6 +15,8 @@ type DivisionPeriodBoardProps = {
   subtitle: string;
   metricLabel: string;
   periodEnded: boolean;
+  starPeriod?: "day" | "week";
+  starBonusPoints?: number;
   showBasePoints?: boolean;
   backHref: string;
   backLabel: string;
@@ -27,6 +29,8 @@ export function DivisionPeriodBoard({
   subtitle,
   metricLabel,
   periodEnded,
+  starPeriod,
+  starBonusPoints,
   showBasePoints = false,
   backHref,
   backLabel,
@@ -43,6 +47,8 @@ export function DivisionPeriodBoard({
         entries={entriesByDivision[activeDivision]}
         metricLabel={metricLabel}
         periodEnded={periodEnded}
+        starBonusPoints={starBonusPoints}
+        starPeriod={starPeriod}
         showBasePoints={showBasePoints}
         subtitle={subtitle}
         title={title}

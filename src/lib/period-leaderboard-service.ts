@@ -101,6 +101,11 @@ export async function getLeaderboardHubData(currentUserId: string) {
     ? computeWeeklyForDivisions(dataset, periods.currentWeek.weekNo)
     : emptyDivisionRecord<PeriodLeaderboardEntry[]>();
 
+  const lastEndedWeek = periods.pastWeeks[0] ?? null;
+  const lastWeeklyByDivision = lastEndedWeek
+    ? computeWeeklyForDivisions(dataset, lastEndedWeek.weekNo)
+    : emptyDivisionRecord<PeriodLeaderboardEntry[]>();
+
   const viewer = overallStandings.find((row) => row.userId === currentUserId);
 
   return {
@@ -112,6 +117,10 @@ export async function getLeaderboardHubData(currentUserId: string) {
     royalsByDivision,
     currentDaily,
     currentWeekly,
+    lastEndedWeek,
+    lastWeeklyByDivision,
+    starOfDayPoints: dataset.config.starOfDayPoints,
+    starOfWeekPoints: dataset.config.starOfWeekPoints,
     viewerDivision: viewer?.division ?? "strider",
   };
 }
@@ -132,6 +141,7 @@ export async function getDailyLeaderboardPage(date: string) {
     day,
     entriesByDivision: computeDailyForDivisions(dataset, date),
     royalsByDivision: buildRoyalsByDivision(overallStandings, challengeEnded),
+    starOfDayPoints: dataset.config.starOfDayPoints,
   };
 }
 
@@ -151,6 +161,7 @@ export async function getWeeklyLeaderboardPage(weekNo: number) {
     week,
     entriesByDivision: computeWeeklyForDivisions(dataset, weekNo),
     royalsByDivision: buildRoyalsByDivision(overallStandings, challengeEnded),
+    starOfWeekPoints: dataset.config.starOfWeekPoints,
   };
 }
 

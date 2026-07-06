@@ -40,6 +40,8 @@ export default async function DayLeaderboardPage({ params }: DayLeaderboardPageP
         metricLabel="steps"
         periodEnded={periodEnded}
         showBasePoints
+        starBonusPoints={page.starOfDayPoints}
+        starPeriod="day"
         subtitle={`${formatDayTitle(page.day.date)} · target ${page.day.targetSteps.toLocaleString("en-IN")} steps`}
         title={periodEnded ? "Day board" : "Today’s board"}
       />
