@@ -1,5 +1,5 @@
 import {
-  computeAllUserAchievements,
+  computeAchievementStatesForUser,
   computePreviousBestSteps,
   detectNewlyUnlockedAchievements,
   detectPersonalBestUnlock,
@@ -28,21 +28,30 @@ export function computeAchievementUnlocks(input: {
     activities: input.afterActivities,
   };
 
-  const before = computeAllUserAchievements(
+  const beforeKm = sumApprovedKm(
+    input.userId,
+    input.beforeActivities,
+    input.distanceByActivity,
+  );
+  const afterKm = sumApprovedKm(
+    input.userId,
+    input.afterActivities,
+    input.distanceByActivity,
+  );
+
+  const before = computeAchievementStatesForUser(
     input.userId,
     beforeDataset,
     input.standing,
-    input.cumulativeKm,
-    input.distanceByActivity,
-  ).achievements;
+    beforeKm,
+  );
 
-  const after = computeAllUserAchievements(
+  const after = computeAchievementStatesForUser(
     input.userId,
     afterDataset,
     input.standing,
-    input.cumulativeKm,
-    input.distanceByActivity,
-  ).achievements;
+    afterKm,
+  );
 
   const unlocked = detectNewlyUnlockedAchievements(before, after);
 
@@ -64,4 +73,22 @@ export function computeAchievementUnlocks(input: {
   }
 
   return unlocked;
+}
+
+function sumApprovedKm(
+  userId: string,
+  activities: ActivityInput[],
+  distanceByActivity?: Map<string, number>,
+): number {
+  let total = 0;
+  for (const activity of activities) {
+    if (activity.userId !== userId || activity.status !== "approved") {
+      continue;
+    }
+    const key = `${activity.userId}:${activity.activityDate}`;
+    total +=
+      distanceByActivity?.get(key) ??
+      Math.round(activity.steps * 0.000762 * 1000) / 1000;
+  }
+  return total;
 }

@@ -335,26 +335,37 @@ export function computeAchievementStatesForUser(
   });
 }
 
-function hasEarnedTier(
-  userId: string,
-  input: StandingsInput & { today?: string },
+function hasEarnedTierFromStates(
+  states: UserAchievementState[],
   seriesId: BadgeSeriesId,
   tierIndex: number,
-  standingByUser: Map<string, UserStanding>,
-  kmByUser: Map<string, number>,
 ): boolean {
-  const states = computeAchievementStatesForUser(
-    userId,
-    input,
-    standingByUser.get(userId) ?? null,
-    kmByUser.get(userId) ?? 0,
-  );
   const state = states.find((entry) => entry.seriesId === seriesId);
   return (
     state !== undefined &&
     state.earnedTierIndex !== null &&
     state.earnedTierIndex >= tierIndex
   );
+}
+
+function buildStatesByUser(
+  input: StandingsInput & { today?: string },
+  standingByUser: Map<string, UserStanding>,
+  kmByUser: Map<string, number>,
+): Map<string, UserAchievementState[]> {
+  const statesByUser = new Map<string, UserAchievementState[]>();
+  for (const user of input.users) {
+    statesByUser.set(
+      user.id,
+      computeAchievementStatesForUser(
+        user.id,
+        input,
+        standingByUser.get(user.id) ?? null,
+        kmByUser.get(user.id) ?? 0,
+      ),
+    );
+  }
+  return statesByUser;
 }
 
 function buildKmByUser(
@@ -387,16 +398,13 @@ export function computeAllUserAchievements(
   totalCount: number;
 } {
   const participantIds = input.users.map((user) => user.id);
-  const achievements = computeAchievementStatesForUser(
-    userId,
-    input,
-    standing,
-    cumulativeKm,
-  );
-
   const standings = computeStandingsFromData(input);
   const standingByUser = new Map(standings.map((entry) => [entry.userId, entry]));
   const kmByUser = buildKmByUser(input.activities, distanceByActivity);
+  const statesByUser = buildStatesByUser(input, standingByUser, kmByUser);
+  const achievements =
+    statesByUser.get(userId) ??
+    computeAchievementStatesForUser(userId, input, standing, cumulativeKm);
 
   const withRarity = achievements.map((achievement) => {
     if (achievement.earnedTierIndex === null) {
@@ -404,13 +412,10 @@ export function computeAllUserAchievements(
     }
 
     const earners = participantIds.filter((participantId) =>
-      hasEarnedTier(
-        participantId,
-        input,
+      hasEarnedTierFromStates(
+        statesByUser.get(participantId) ?? [],
         achievement.seriesId,
         achievement.earnedTierIndex!,
-        standingByUser,
-        kmByUser,
       ),
     ).length;
 

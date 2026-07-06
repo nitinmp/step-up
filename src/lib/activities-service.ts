@@ -660,7 +660,13 @@ export async function createActivity(input: {
   const standing = getStandingForUser(standings, input.userId) ?? null;
 
   const dataset = await loadScoringDataset();
-  const beforeActivities = dataset.activities;
+  const beforeActivities = dataset.activities.filter(
+    (activity) =>
+      !(
+        activity.userId === input.userId &&
+        activity.activityDate === input.activityDate
+      ),
+  );
   const afterActivities = [
     ...beforeActivities.filter(
       (activity) =>
@@ -705,17 +711,24 @@ export async function createActivity(input: {
       0,
     );
 
-  const newlyUnlockedBadges = computeAchievementUnlocks({
-    userId: input.userId,
-    dataset,
-    standing,
-    cumulativeKm,
-    beforeActivities,
-    afterActivities,
-    newSteps: stepsValue,
-    newActivityDate: input.activityDate,
-    distanceByActivity,
-  });
+  let newlyUnlockedBadges: Awaited<
+    ReturnType<typeof computeAchievementUnlocks>
+  > = [];
+  try {
+    newlyUnlockedBadges = computeAchievementUnlocks({
+      userId: input.userId,
+      dataset,
+      standing,
+      cumulativeKm,
+      beforeActivities,
+      afterActivities,
+      newSteps: stepsValue,
+      newActivityDate: input.activityDate,
+      distanceByActivity,
+    });
+  } catch (error) {
+    console.error("Failed to compute achievement unlocks after log", error);
+  }
 
   return {
     activity: created,
