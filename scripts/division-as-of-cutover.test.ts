@@ -5,6 +5,7 @@ import {
   DIVISION_BEFORE_CUTOVER,
   DIVISION_CUTOVER_DATE,
   getDivisionForDate,
+  STAGE4_DIVISION_CUTOVER_DATE,
 } from "../src/lib/division-as-of-cutover";
 
 const MOHIT_MENON_ID = "afafd81d-8624-47d4-a621-9b42dc5ccffd";
@@ -36,6 +37,17 @@ describe("getDivisionForDate", () => {
       "strider",
     );
     assert.equal(getDivisionForDate(PUSHPA_ID, "riser", DIVISION_CUTOVER_DATE), "riser");
+  });
+
+  it("uses division before stage 4 for Jul 6 through Jul 19 after a move", () => {
+    assert.equal(
+      getDivisionForDate(MOHIT_MENON_ID, "strider", "2026-07-19", "elite"),
+      "elite",
+    );
+    assert.equal(
+      getDivisionForDate(MOHIT_MENON_ID, "strider", STAGE4_DIVISION_CUTOVER_DATE, "elite"),
+      "strider",
+    );
   });
 
   it("maps every participant to elite or strider before cutover", () => {

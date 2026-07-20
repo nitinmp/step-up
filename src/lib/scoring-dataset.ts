@@ -60,6 +60,7 @@ export async function loadScoringDataset(): Promise<ScoringDataset> {
           createdAt: users.createdAt,
           profileImageUrl: users.profileImageUrl,
           division: users.division,
+          divisionBeforeStage4: users.divisionBeforeStage4,
           gender: users.gender,
         })
         .from(users),
@@ -99,6 +100,9 @@ export async function loadScoringDataset(): Promise<ScoringDataset> {
         createdAt: user.createdAt,
         profileImageUrl: user.profileImageUrl,
         division: parseDivision(user.division),
+        divisionBeforeStage4: user.divisionBeforeStage4
+          ? parseDivision(user.divisionBeforeStage4)
+          : null,
         gender: parseGender(user.gender),
       })),
       activities: allActivities.map((activity) => ({

@@ -1,4 +1,11 @@
 import type { Division } from "@/lib/divisions";
+import {
+  STAGE4_BLOCK_POINTS,
+  STAGE4_MILESTONE_20K_POINTS,
+  STAGE4_MILESTONE_40K_POINTS,
+  STAGE4_OVER_TARGET_BLOCKS,
+  usesStage4Scoring,
+} from "@/lib/group-rules";
 import { compareDateStrings } from "@/lib/dates";
 import { isBeastMode } from "@/lib/scoring";
 import type {
@@ -392,8 +399,21 @@ export function computeRankChase(
 export function pushBonusCallout(
   division: Division,
   pushPoints: number,
+  asOfDate?: string,
 ): string {
   const credit = pushPoints.toLocaleString("en-IN");
+
+  if (asOfDate && usesStage4Scoring(asOfDate)) {
+    const block = STAGE4_OVER_TARGET_BLOCKS[division].toLocaleString("en-IN");
+    const divisionLabel =
+      division === "riser"
+        ? "Riser"
+        : division === "strider"
+          ? "Strider"
+          : "Elite";
+
+    return `${divisionLabel} Stage 4: +${STAGE4_BLOCK_POINTS} pts per ${block} steps past target, plus +${STAGE4_MILESTONE_20K_POINTS} above 20k and +${STAGE4_MILESTONE_40K_POINTS} above 40k steps. That's where your +${credit} push came from — your fastest-growing points source.`;
+  }
 
   if (division === "riser") {
     return `Riser bonus: every step past 10,000 earns 2× the week's points. That's where your +${credit} push came from — your fastest-growing points source.`;

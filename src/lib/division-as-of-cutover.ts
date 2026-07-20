@@ -3,6 +3,9 @@ import type { Division } from "./divisions";
 /** Must match TIERED_SCORING_START_DATE in group-rules.ts */
 export const DIVISION_CUTOVER_DATE = "2026-07-06";
 
+/** Must match STAGE4_SCORING_START_DATE in group-rules.ts */
+export const STAGE4_DIVISION_CUTOVER_DATE = "2026-07-20";
+
 /**
  * Each participant's division through 2026-07-05 (inclusive).
  * Sourced from the 6 Jul migration: Strider→Riser (32), Strider→Elite (4),
@@ -80,8 +83,17 @@ export function getDivisionForDate(
   userId: string,
   currentDivision: Division,
   asOfDate: string,
+  divisionBeforeStage4?: Division | null,
 ): Division {
+  if (asOfDate >= STAGE4_DIVISION_CUTOVER_DATE) {
+    return currentDivision;
+  }
+
   if (asOfDate >= DIVISION_CUTOVER_DATE) {
+    if (divisionBeforeStage4) {
+      return divisionBeforeStage4;
+    }
+
     return currentDivision;
   }
 

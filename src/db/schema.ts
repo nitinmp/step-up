@@ -23,6 +23,8 @@ export const users = pgTable("users", {
   role: text("role").notNull().default("user"),
   profileImageUrl: text("profile_image_url"),
   division: text("division").notNull().default("strider"),
+  /** Division used for scoring on activity dates before STAGE4_DIVISION_CUTOVER_DATE. */
+  divisionBeforeStage4: text("division_before_stage4"),
   gender: text("gender"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()

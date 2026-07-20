@@ -331,48 +331,76 @@ function StreakChainSection({
   );
 }
 
+const CLIMB_BAR_HEIGHTS = ["h-14", "h-[4.5rem]", "h-20", "h-[5.5rem]"] as const;
+
 function ClimbSection({ weeks }: { weeks: ClimbWeek[] }) {
   return (
     <section className="rounded-3xl border border-black/5 bg-surface p-5 shadow-sm">
       <h2 className="text-base font-semibold text-foreground">The climb</h2>
-      <div className="mt-4 grid grid-cols-4 gap-2">
-        {weeks.map((week) => (
-          <div className="flex flex-col items-center gap-2" key={week.weekNo}>
+      <div className="mt-4 flex items-end justify-between gap-2">
+        {weeks.map((week) => {
+          const progress =
+            week.totalDays > 0
+              ? Math.min(100, (week.daysMet / week.totalDays) * 100)
+              : 0;
+          const heightClass = CLIMB_BAR_HEIGHTS[week.weekNo - 1] ?? "h-20";
+          const showFill = week.status !== "upcoming" && progress > 0;
+
+          return (
             <div
-              className={cn(
-                "flex h-20 w-full items-end justify-center rounded-2xl px-1 pb-2",
-                week.status === "completed" && "bg-brand/15",
-                week.status === "current" && "bg-brand/25 ring-2 ring-brand/20",
-                week.status === "upcoming" && "bg-black/[0.04]",
-              )}
+              className="flex min-w-0 flex-1 flex-col items-center gap-2"
+              key={week.weekNo}
             >
-              <span
+              <div
+                aria-label={`Week ${week.weekNo}, ${week.daysMet} of ${week.totalDays} target days met`}
                 className={cn(
-                  "text-[10px] font-semibold uppercase",
-                  week.status === "upcoming" ? "text-muted" : "text-brand",
+                  "relative w-full overflow-hidden rounded-2xl bg-black/[0.06]",
+                  heightClass,
+                  week.status === "current" && "ring-2 ring-brand/25",
                 )}
+                role="img"
               >
-                {week.targetLabel}
-              </span>
+                {showFill ? (
+                  <div
+                    className={cn(
+                      "absolute inset-x-0 bottom-0 rounded-b-2xl",
+                      week.status === "completed" ? "bg-brand" : "bg-brand/75",
+                    )}
+                    style={{ height: `${progress}%` }}
+                  />
+                ) : null}
+                <span
+                  className={cn(
+                    "absolute inset-x-0 bottom-1.5 z-10 px-0.5 text-center text-[10px] font-semibold uppercase leading-tight",
+                    week.status === "upcoming"
+                      ? "text-muted"
+                      : progress >= 35
+                        ? "text-white"
+                        : "text-brand",
+                  )}
+                >
+                  {week.targetLabel}
+                </span>
+              </div>
+              <p className="text-center text-[10px] font-semibold text-foreground">
+                W{week.weekNo}
+              </p>
+              {week.status === "completed" ? (
+                <p className="text-center text-[10px] text-brand">
+                  Done ✓ {week.daysMet}/{week.totalDays}
+                </p>
+              ) : week.status === "current" ? (
+                <p className="text-center text-[10px] text-muted">
+                  {week.daysMet}/{week.totalDays} days
+                </p>
+              ) : (
+                <p className="text-center text-[10px] text-muted">
+                  {formatDisplayDate(week.startDate).replace(/, \d{4}$/, "")}
+                </p>
+              )}
             </div>
-            <p className="text-center text-[10px] font-semibold text-foreground">
-              W{week.weekNo}
-            </p>
-            {week.status === "completed" ? (
-              <p className="text-center text-[10px] text-brand">
-                Done ✓ {week.daysMet}/{week.totalDays}
-              </p>
-            ) : week.status === "current" ? (
-              <p className="text-center text-[10px] text-muted">
-                {week.daysMet}/{week.totalDays} days
-              </p>
-            ) : (
-              <p className="text-center text-[10px] text-muted">
-                {formatDisplayDate(week.startDate).replace(/, \d{4}$/, "")}
-              </p>
-            )}
-          </div>
-        ))}
+          );
+        })}
       </div>
     </section>
   );

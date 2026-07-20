@@ -435,6 +435,7 @@ export const getActivitiesDashboard = cache(async function getActivitiesDashboar
     pushCallout: pushBonusCallout(
       standing?.division ?? "strider",
       dashboardStats.points.pushPoints,
+      today,
     ),
     achievements: achievementBundle.achievements,
     badgePreview,
@@ -607,12 +608,22 @@ export async function createActivity(input: {
   const uploaded = await uploadBlob(pathname, input.photo, input.photo.type);
 
   const [participant] = await db
-    .select({ division: users.division })
+    .select({
+      division: users.division,
+      divisionBeforeStage4: users.divisionBeforeStage4,
+    })
     .from(users)
     .where(eq(users.id, input.userId))
     .limit(1);
 
-  const division = parseDivision(participant?.division);
+  const division = getDivisionForDate(
+    input.userId,
+    parseDivision(participant?.division),
+    input.activityDate,
+    participant?.divisionBeforeStage4
+      ? parseDivision(participant.divisionBeforeStage4)
+      : null,
+  );
 
   const basePoints = computeBasePoints(
     stepsValue,
@@ -726,11 +737,21 @@ export async function updatePendingActivity(input: {
   }
 
   const [participant] = await db
-    .select({ division: users.division })
+    .select({
+      division: users.division,
+      divisionBeforeStage4: users.divisionBeforeStage4,
+    })
     .from(users)
     .where(eq(users.id, input.userId))
     .limit(1);
-  const division = parseDivision(participant?.division);
+  const division = getDivisionForDate(
+    input.userId,
+    parseDivision(participant?.division),
+    existing.activityDate,
+    participant?.divisionBeforeStage4
+      ? parseDivision(participant.divisionBeforeStage4)
+      : null,
+  );
 
   const stepsValue = input.steps;
   const distanceKm = validateActivityMetrics(stepsValue, input.distanceKm);

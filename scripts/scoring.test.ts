@@ -5,10 +5,16 @@ import {
   computeBasePoints,
   computeLegacyBasePoints,
   computeOverTargetBonus,
+  computeStage4BasePoints,
+  computeStage4MilestoneBonus,
+  computeStage4OverTargetBonus,
   computeTieredBasePoints,
   isBeastMode,
 } from "../src/lib/scoring";
-import { TIERED_SCORING_START_DATE } from "../src/lib/group-rules";
+import {
+  STAGE4_SCORING_START_DATE,
+  TIERED_SCORING_START_DATE,
+} from "../src/lib/group-rules";
 
 const WEEK2_DATE = TIERED_SCORING_START_DATE;
 const BEFORE_CUTOVER = "2026-07-05";
@@ -106,22 +112,59 @@ describe("computeBasePoints cutover", () => {
   });
 });
 
-describe("week 4 target above threshold (tiered scoring active)", () => {
-  const week4Date = "2026-07-23";
-  const week4Target = 12000;
+describe("week 4 stage 4 block scoring (from 20 Jul)", () => {
+  const week4Date = STAGE4_SCORING_START_DATE;
+  const week4Target = 11000;
   const week4Rate = 20;
 
-  it("scores strider over-target entirely in segment 2 when target exceeds threshold", () => {
+  it("elite earns 20 pts per 4000 steps above target", () => {
     assert.equal(
-      computeBasePoints(15000, week4Target, week4Rate, week4Date, "strider"),
+      computeStage4OverTargetBonus(19000, week4Target, "elite"),
       40,
+    );
+    assert.equal(
+      computeBasePoints(19000, week4Target, week4Rate, week4Date, "elite"),
+      60,
     );
   });
 
-  it("does not double-count elite when target is below threshold", () => {
+  it("strider earns 20 pts per 3000 steps above target", () => {
     assert.equal(
-      computeBasePoints(18000, week4Target, week4Rate, week4Date, "elite"),
-      100,
+      computeStage4OverTargetBonus(17000, week4Target, "strider"),
+      40,
+    );
+    assert.equal(
+      computeBasePoints(17000, week4Target, week4Rate, week4Date, "strider"),
+      60,
+    );
+  });
+
+  it("riser earns 20 pts per 2000 steps above target", () => {
+    assert.equal(
+      computeStage4OverTargetBonus(15000, week4Target, "riser"),
+      40,
+    );
+    assert.equal(
+      computeBasePoints(15000, week4Target, week4Rate, week4Date, "riser"),
+      60,
+    );
+  });
+
+  it("adds milestone bonuses above 20k and 40k steps", () => {
+    assert.equal(computeStage4MilestoneBonus(20000), 0);
+    assert.equal(computeStage4MilestoneBonus(20001), 25);
+    assert.equal(computeStage4MilestoneBonus(40000), 25);
+    assert.equal(computeStage4MilestoneBonus(40001), 75);
+    assert.equal(
+      computeStage4BasePoints(40001, week4Target, week4Rate, "elite"),
+      20 + Math.floor(29001 / 4000) * 20 + 75,
+    );
+  });
+
+  it("still uses tiered scoring on the last week 3 day", () => {
+    assert.equal(
+      computeBasePoints(15000, week4Target, 15, "2026-07-19", "strider"),
+      45,
     );
   });
 });

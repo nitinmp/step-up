@@ -26,6 +26,7 @@ export type UserInput = {
   createdAt: Date;
   profileImageUrl?: string | null;
   division?: Division;
+  divisionBeforeStage4?: Division | null;
   gender?: Gender | null;
 };
 
@@ -162,6 +163,31 @@ function userDivisionMap(users: UserInput[]): Map<string, Division> {
   );
 }
 
+function userDivisionBeforeStage4Map(
+  users: UserInput[],
+): Map<string, Division | null> {
+  return new Map(
+    users.map((user) => [
+      user.id,
+      user.divisionBeforeStage4 ? parseDivision(user.divisionBeforeStage4) : null,
+    ]),
+  );
+}
+
+function divisionForUserOnDate(
+  userId: string,
+  date: string,
+  divisionsByUser: Map<string, Division>,
+  divisionBeforeStage4ByUser: Map<string, Division | null>,
+): Division {
+  return getDivisionForDate(
+    userId,
+    divisionsByUser.get(userId) ?? DEFAULT_DIVISION,
+    date,
+    divisionBeforeStage4ByUser.get(userId),
+  );
+}
+
 function compareStandings(
   a: { total: number; totalSteps: number; createdAt: Date },
   b: { total: number; totalSteps: number; createdAt: Date },
@@ -235,6 +261,7 @@ export function computeStandingsFromData(
   const weekDates = buildWeekDates(input.challengeDays);
   const weekEndDates = buildWeekEndDates(input.challengeDays);
   const divisionsByUser = userDivisionMap(input.users);
+  const divisionBeforeStage4ByUser = userDivisionBeforeStage4Map(input.users);
   const approved = input.activities.filter(
     (activity) => activity.status === "approved",
   );
@@ -310,8 +337,12 @@ export function computeStandingsFromData(
     for (const division of divisionsActiveOnDate(date)) {
       const divisionSteps = [...userSteps.entries()].filter(
         ([userId]) =>
-          getDivisionForDate(userId, divisionsByUser.get(userId) ?? DEFAULT_DIVISION, date) ===
-          division,
+          divisionForUserOnDate(
+            userId,
+            date,
+            divisionsByUser,
+            divisionBeforeStage4ByUser,
+          ) === division,
       );
       const maxSteps = Math.max(...divisionSteps.map(([, steps]) => steps), 0);
       if (maxSteps <= 0) {
@@ -351,8 +382,12 @@ export function computeStandingsFromData(
 
       for (const user of input.users) {
         if (
-          getDivisionForDate(user.id, divisionsByUser.get(user.id) ?? DEFAULT_DIVISION, weekEnd) !==
-          division
+          divisionForUserOnDate(
+            user.id,
+            weekEnd,
+            divisionsByUser,
+            divisionBeforeStage4ByUser,
+          ) !== division
         ) {
           continue;
         }

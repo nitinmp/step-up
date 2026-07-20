@@ -16,7 +16,7 @@ import { deleteBlobUrl, uploadBlob } from "@/lib/blob-storage";
 import { appConfig } from "@/config";
 import type { Division, Gender } from "@/lib/divisions";
 import { isValidDivision, isValidGender, parseDivision, parseGender } from "@/lib/divisions";
-import { TIERED_SCORING_START_DATE } from "@/lib/group-rules";
+import { getDivisionForDate, STAGE4_DIVISION_CUTOVER_DATE } from "@/lib/division-as-of-cutover";
 import { isAdminLoggableDate } from "@/lib/dates";
 import { distanceKmToStorage, parseDistanceKm } from "@/lib/distance";
 import { DEFAULT_PARTICIPANT_PASSWORD } from "@/lib/default-password";
@@ -159,6 +159,7 @@ export async function updateAdminActivity(
       status: activities.status,
       photoUrl: activities.photoUrl,
       userDivision: users.division,
+      userDivisionBeforeStage4: users.divisionBeforeStage4,
     })
     .from(activities)
     .innerJoin(users, eq(users.id, activities.userId))
@@ -230,7 +231,14 @@ export async function updateAdminActivity(
   }
 
   const previousBasePoints = existing.basePoints;
-  const division = parseDivision(existing.userDivision);
+  const division = getDivisionForDate(
+    existing.userId,
+    parseDivision(existing.userDivision),
+    nextDate,
+    existing.userDivisionBeforeStage4
+      ? parseDivision(existing.userDivisionBeforeStage4)
+      : null,
+  );
   const nextBasePoints = computeBasePoints(
     nextSteps,
     day.targetSteps,
@@ -339,7 +347,12 @@ export async function createAdminActivity(
   }
 
   const [user] = await db
-    .select({ id: users.id, name: users.name, division: users.division })
+    .select({
+      id: users.id,
+      name: users.name,
+      division: users.division,
+      divisionBeforeStage4: users.divisionBeforeStage4,
+    })
     .from(users)
     .where(eq(users.id, input.userId))
     .limit(1);
@@ -382,7 +395,12 @@ export async function createAdminActivity(
   const pathname = `activities/${input.userId}/${input.activityDate}-${Date.now()}.${extension}`;
   const uploaded = await uploadBlob(pathname, input.photo, input.photo.type);
 
-  const division = parseDivision(user.division);
+  const division = getDivisionForDate(
+    input.userId,
+    parseDivision(user.division),
+    input.activityDate,
+    user.divisionBeforeStage4 ? parseDivision(user.divisionBeforeStage4) : null,
+  );
   const basePoints = computeBasePoints(
     stepsValue,
     day.targetSteps,
@@ -503,7 +521,10 @@ export async function updateAdminUserProfile(
   const db = getDb();
 
   const [currentUser] = await db
-    .select({ division: users.division })
+    .select({
+      division: users.division,
+      divisionBeforeStage4: users.divisionBeforeStage4,
+    })
     .from(users)
     .where(eq(users.id, userId))
     .limit(1);
@@ -512,9 +533,21 @@ export async function updateAdminUserProfile(
     throw new ActivityError("User not found.", 404);
   }
 
+  const dbUpdates: typeof updates & { divisionBeforeStage4?: Division } = {
+    ...updates,
+  };
+
+  if (
+    input.division !== undefined &&
+    parseDivision(currentUser.division) !== input.division &&
+    !currentUser.divisionBeforeStage4
+  ) {
+    dbUpdates.divisionBeforeStage4 = parseDivision(currentUser.division);
+  }
+
   const [updated] = await db
     .update(users)
-    .set(updates)
+    .set(dbUpdates)
     .where(eq(users.id, userId))
     .returning({
       id: users.id,
@@ -535,17 +568,32 @@ export async function updateAdminUserProfile(
     input.division !== undefined &&
     parseDivision(currentUser.division) !== input.division
   ) {
-    await rescoreUserActivitiesFromCutover(userId, input.division);
+    await rescoreUserActivitiesFromStage4(userId);
   }
 
   return mapAdminUserRow(updated);
 }
 
-async function rescoreUserActivitiesFromCutover(
-  userId: string,
-  division: Division,
-) {
+async function rescoreUserActivitiesFromStage4(userId: string) {
   const db = getDb();
+
+  const [user] = await db
+    .select({
+      division: users.division,
+      divisionBeforeStage4: users.divisionBeforeStage4,
+    })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+
+  if (!user) {
+    return;
+  }
+
+  const currentDivision = parseDivision(user.division);
+  const divisionBeforeStage4 = user.divisionBeforeStage4
+    ? parseDivision(user.divisionBeforeStage4)
+    : null;
 
   const rows = await db
     .select({
@@ -557,7 +605,7 @@ async function rescoreUserActivitiesFromCutover(
     .where(
       and(
         eq(activities.userId, userId),
-        gte(activities.activityDate, TIERED_SCORING_START_DATE),
+        gte(activities.activityDate, STAGE4_DIVISION_CUTOVER_DATE),
       ),
     );
 
@@ -574,6 +622,13 @@ async function rescoreUserActivitiesFromCutover(
     if (!day) {
       continue;
     }
+
+    const division = getDivisionForDate(
+      userId,
+      currentDivision,
+      row.activityDate,
+      divisionBeforeStage4,
+    );
 
     const basePoints = computeBasePoints(
       row.steps,
