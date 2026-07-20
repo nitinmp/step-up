@@ -1,5 +1,5 @@
 import type { Division } from "./divisions";
-import { parseDivision } from "./divisions";
+import { DEFAULT_DIVISION, parseDivision } from "./divisions";
 import { getDivisionForDate } from "./division-as-of-cutover";
 import { isBeastMode } from "./scoring";
 import type {
@@ -114,7 +114,12 @@ function usersInDivision(
 ): UserInput[] {
   return users.filter(
     (user) =>
-      getDivisionForDate(user.id, parseDivision(user.division), asOfDate) === division,
+      getDivisionForDate(
+        user.id,
+        parseDivision(user.division ?? DEFAULT_DIVISION),
+        asOfDate,
+        user.divisionBeforeStage4 ?? null,
+      ) === division,
   );
 }
 

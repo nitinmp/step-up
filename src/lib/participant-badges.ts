@@ -115,6 +115,28 @@ function userDivisionMap(users: UserInput[]): Map<string, Division> {
   );
 }
 
+function userDivisionBeforeStage4Map(
+  users: UserInput[],
+): Map<string, Division | null> {
+  return new Map(
+    users.map((user) => [user.id, user.divisionBeforeStage4 ?? null]),
+  );
+}
+
+function divisionForUserOnDate(
+  userId: string,
+  date: string,
+  divisionsByUser: Map<string, Division>,
+  divisionBeforeStage4ByUser: Map<string, Division | null>,
+): Division {
+  return getDivisionForDate(
+    userId,
+    divisionsByUser.get(userId) ?? DEFAULT_DIVISION,
+    date,
+    divisionBeforeStage4ByUser.get(userId),
+  );
+}
+
 export function computeParticipantBadges(
   userId: string,
   input: StandingsInput & { today?: string },
@@ -125,7 +147,7 @@ export function computeParticipantBadges(
   const weekDates = buildWeekDates(input.challengeDays);
   const weekEndDates = buildWeekEndDates(input.challengeDays);
   const divisionsByUser = userDivisionMap(input.users);
-  const userDivision = divisionsByUser.get(userId) ?? DEFAULT_DIVISION;
+  const divisionBeforeStage4ByUser = userDivisionBeforeStage4Map(input.users);
 
   const approved = input.activities.filter(
     (activity) => activity.status === "approved",
@@ -171,8 +193,18 @@ export function computeParticipantBadges(
 
     const userStepsInDivision = [...userSteps.entries()].filter(
       ([id]) =>
-        getDivisionForDate(id, divisionsByUser.get(id) ?? DEFAULT_DIVISION, date) ===
-        getDivisionForDate(userId, userDivision, date),
+        divisionForUserOnDate(
+          id,
+          date,
+          divisionsByUser,
+          divisionBeforeStage4ByUser,
+        ) ===
+        divisionForUserOnDate(
+          userId,
+          date,
+          divisionsByUser,
+          divisionBeforeStage4ByUser,
+        ),
     );
     const maxSteps = Math.max(...userStepsInDivision.map(([, steps]) => steps), 0);
     const mySteps = userSteps.get(userId) ?? 0;
@@ -198,11 +230,20 @@ export function computeParticipantBadges(
     }
 
     const weeklyTotals = new Map<string, number>();
-    const weekDivision = getDivisionForDate(userId, userDivision, weekRange.endDate);
+    const weekDivision = divisionForUserOnDate(
+      userId,
+      weekRange.endDate,
+      divisionsByUser,
+      divisionBeforeStage4ByUser,
+    );
     for (const user of input.users) {
       if (
-        getDivisionForDate(user.id, divisionsByUser.get(user.id) ?? DEFAULT_DIVISION, weekRange.endDate) !==
-        weekDivision
+        divisionForUserOnDate(
+          user.id,
+          weekRange.endDate,
+          divisionsByUser,
+          divisionBeforeStage4ByUser,
+        ) !== weekDivision
       ) {
         continue;
       }

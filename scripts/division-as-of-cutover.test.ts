@@ -45,8 +45,16 @@ describe("getDivisionForDate", () => {
       "elite",
     );
     assert.equal(
+      getDivisionForDate(PUSHPA_ID, "elite", "2026-07-19", "riser"),
+      "riser",
+    );
+    assert.equal(
       getDivisionForDate(MOHIT_MENON_ID, "strider", STAGE4_DIVISION_CUTOVER_DATE, "elite"),
       "strider",
+    );
+    assert.equal(
+      getDivisionForDate(PUSHPA_ID, "elite", STAGE4_DIVISION_CUTOVER_DATE, "riser"),
+      "elite",
     );
   });
 

@@ -197,6 +197,7 @@ function buildStarOfDayKeys(
     steps: number;
   }[],
   userDivisions: Map<string, Division>,
+  divisionBeforeStage4ByUser: Map<string, Division | null>,
   today: string,
 ): Set<string> {
   const stepsByDateDivision = new Map<string, Map<string, number>>();
@@ -210,6 +211,7 @@ function buildStarOfDayKeys(
       activity.userId,
       userDivisions.get(activity.userId) ?? "strider",
       activity.activityDate,
+      divisionBeforeStage4ByUser.get(activity.userId),
     );
     const bucketKey = `${activity.activityDate}:${division}`;
     const dateMap = stepsByDateDivision.get(bucketKey) ?? new Map();
@@ -240,9 +242,24 @@ function buildStarOfDayKeys(
   return winners;
 }
 
-async function loadUserDivisionMap(db: ReturnType<typeof getDb>) {
-  const rows = await db.select({ id: users.id, division: users.division }).from(users);
-  return new Map(rows.map((row) => [row.id, parseDivision(row.division)]));
+async function loadUserDivisionMaps(db: ReturnType<typeof getDb>) {
+  const rows = await db
+    .select({
+      id: users.id,
+      division: users.division,
+      divisionBeforeStage4: users.divisionBeforeStage4,
+    })
+    .from(users);
+
+  return {
+    divisions: new Map(rows.map((row) => [row.id, parseDivision(row.division)])),
+    divisionBeforeStage4: new Map(
+      rows.map((row) => [
+        row.id,
+        row.divisionBeforeStage4 ? parseDivision(row.divisionBeforeStage4) : null,
+      ]),
+    ),
+  };
 }
 
 export const getActivitiesDashboard = cache(async function getActivitiesDashboard(
@@ -251,7 +268,7 @@ export const getActivitiesDashboard = cache(async function getActivitiesDashboar
   const db = getDb();
   const { config, days, today } = await getChallengeWindow();
 
-  const [userActivities, approvedForStars, standings, userDivisions, dataset] =
+  const [userActivities, approvedForStars, standings, userDivisionMaps, dataset] =
     await Promise.all([
     db
       .select({
@@ -275,7 +292,7 @@ export const getActivitiesDashboard = cache(async function getActivitiesDashboar
       })
       .from(activities),
     computeStandings(),
-    loadUserDivisionMap(db),
+    loadUserDivisionMaps(db),
     loadScoringDataset(),
   ]);
 
@@ -284,7 +301,8 @@ export const getActivitiesDashboard = cache(async function getActivitiesDashboar
   );
   const starOfDayKeys = buildStarOfDayKeys(
     approvedForStars.filter((activity) => activity.status === "approved"),
-    userDivisions,
+    userDivisionMaps.divisions,
+    userDivisionMaps.divisionBeforeStage4,
     today,
   );
   const standing = getStandingForUser(standings, userId);
@@ -664,10 +682,11 @@ export async function createActivity(input: {
     .from(activities);
 
   const today = getTodayDateString(appConfig.timezone);
-  const userDivisions = await loadUserDivisionMap(db);
+  const userDivisionMaps = await loadUserDivisionMaps(db);
   const starOfDayKeys = buildStarOfDayKeys(
     approvedActivities.filter((activity) => activity.status === "approved"),
-    userDivisions,
+    userDivisionMaps.divisions,
+    userDivisionMaps.divisionBeforeStage4,
     today,
   );
   const standings = await computeStandings();
