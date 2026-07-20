@@ -20,7 +20,9 @@
     "test:period-scoring": "tsx --test scripts/period-scoring.test.ts",
     "test:dates": "tsx --test scripts/dates.test.ts",
     "test:dashboard": "tsx --test scripts/dashboard-stats.test.ts",
-    "test": "pnpm test:scoring && pnpm test:standings && pnpm test:period-scoring && pnpm test:dates && pnpm test:dashboard"
+    "test:stage4-scoring": "tsx --test scripts/stage4-scoring.test.ts",
+    "verify:stage4-scoring": "node scripts/verify-stage4-scoring.mjs",
+    "test": "pnpm test:scoring && pnpm test:standings && pnpm test:period-scoring && pnpm test:dates && pnpm test:dashboard && pnpm test:stage4-scoring"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
