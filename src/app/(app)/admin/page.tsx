@@ -7,6 +7,7 @@ import {
   listAdminUsers,
 } from "@/lib/admin-service";
 import { getChallengeWindow } from "@/lib/activities-service";
+import { getAdminCertificateSnapshot } from "@/lib/certificate-admin-service";
 import { getAdminScoringSnapshot } from "@/lib/scoring-admin-service";
 
 export default async function AdminPage() {
@@ -16,11 +17,13 @@ export default async function AdminPage() {
     redirect("/activities");
   }
 
-  const [{ days }, activities, users, initialScoring] = await Promise.all([
+  const [{ days }, activities, users, initialScoring, initialCertificates] =
+    await Promise.all([
     getChallengeWindow(),
     listAdminActivities(),
     listAdminUsers(),
     getAdminScoringSnapshot(),
+    getAdminCertificateSnapshot(),
   ]);
 
   return (
@@ -28,6 +31,7 @@ export default async function AdminPage() {
       challengeDays={days}
       currentAdminId={session.user.id}
       initialActivities={activities}
+      initialCertificates={initialCertificates}
       initialScoring={initialScoring}
       users={users}
     />

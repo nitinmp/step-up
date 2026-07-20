@@ -9,6 +9,9 @@ import type {
   AdminUserRow,
 } from "@/lib/admin-service";
 import type {
+  AdminCertificateSnapshot,
+} from "@/lib/certificate-admin-service";
+import type {
   AdminScoringResult,
   DayScoringRunRecord,
   WeekScoringRunRecord,
@@ -24,6 +27,7 @@ import type { UserStanding } from "@/lib/standings";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select } from "@/components/ui/select";
 import { AdminDivisionBadge } from "@/components/app/division-badge";
+import { CertificatesTab } from "@/components/admin/admin-certificates-tab";
 
 type ChallengeDayOption = {
   date: string;
@@ -37,11 +41,23 @@ type AdminPanelProps = {
   challengeDays: ChallengeDayOption[];
   currentAdminId: string;
   initialScoring: AdminScoringResult;
+  initialCertificates: AdminCertificateSnapshot;
 };
 
-type AdminTab = "review" | "approved" | "participants" | "scoring";
+type AdminTab =
+  | "review"
+  | "approved"
+  | "participants"
+  | "scoring"
+  | "certificates";
 
-const ADMIN_TABS: AdminTab[] = ["review", "approved", "participants", "scoring"];
+const ADMIN_TABS: AdminTab[] = [
+  "review",
+  "approved",
+  "participants",
+  "scoring",
+  "certificates",
+];
 const VISIBLE_TABS = 2;
 const APPROVED_PAGE_SIZE = 20;
 
@@ -61,6 +77,9 @@ function getAdminTabLabel(
   }
   if (tab === "participants") {
     return "Participants";
+  }
+  if (tab === "certificates") {
+    return "Certificates";
   }
   return "Scoring";
 }
@@ -171,6 +190,7 @@ export function AdminPanel({
   challengeDays,
   currentAdminId,
   initialScoring,
+  initialCertificates,
 }: AdminPanelProps) {
   const router = useRouter();
   const [adminTab, setAdminTab] = useState<AdminTab>("review");
@@ -207,6 +227,9 @@ export function AdminPanel({
     () => weekOptions.at(-1) ?? 1,
   );
   const [scoringBusy, setScoringBusy] = useState(false);
+  const [certificateBusyDate, setCertificateBusyDate] = useState<string | null>(
+    null,
+  );
   const [userFilter, setUserFilter] = useState("");
   const [dateFilter, setDateFilter] = useState("");
   const [divisionFilter, setDivisionFilter] = useState("");
@@ -603,6 +626,34 @@ export function AdminPanel({
     router.refresh();
   }
 
+  async function generateCertificates(
+    date: string,
+    regenerate: boolean,
+  ): Promise<boolean> {
+    setCertificateBusyDate(date);
+    setError(null);
+    setMessage(null);
+
+    const response = await fetch("/api/admin/certificates", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ date, regenerate }),
+    });
+    const payload = (await response.json()) as { error?: string };
+
+    setCertificateBusyDate(null);
+
+    if (!response.ok) {
+      setError(payload.error ?? "Could not generate certificates.");
+      return false;
+    }
+
+    setMessage(
+      regenerate ? "Certificates regenerated." : "Certificates generated.",
+    );
+    return true;
+  }
+
   async function createParticipant(name: string, mobile: string) {
     setBusyId("add-participant");
     setError(null);
@@ -824,7 +875,7 @@ export function AdminPanel({
           onUpdateProfile={updateParticipantProfile}
           users={participantRows}
         />
-      ) : (
+      ) : adminTab === "scoring" ? (
         <ScoringTab
           busy={scoringBusy}
           challengeDays={challengeDays}
@@ -836,6 +887,12 @@ export function AdminPanel({
           onScoreWeekInputChange={setScoreWeekInput}
           scoring={scoring}
           weekOptions={weekOptions}
+        />
+      ) : (
+        <CertificatesTab
+          busyDate={certificateBusyDate}
+          initialSnapshot={initialCertificates}
+          onGenerate={generateCertificates}
         />
       )}
 

@@ -160,6 +160,53 @@ export const weekScoringRunEntry = pgTable(
   (table) => [primaryKey({ columns: [table.runId, table.userId] })],
 );
 
+export const starDayCertificateRun = pgTable(
+  "star_day_certificate_run",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    activityDate: date("activity_date")
+      .notNull()
+      .unique()
+      .references(() => challengeDay.date),
+    generatedBy: uuid("generated_by").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    generatedAt: timestamp("generated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("star_day_certificate_run_activity_date_idx").on(table.activityDate),
+  ],
+);
+
+export const starDayCertificate = pgTable(
+  "star_day_certificate",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    runId: uuid("run_id")
+      .notNull()
+      .references(() => starDayCertificateRun.id, { onDelete: "cascade" }),
+    activityDate: date("activity_date")
+      .notNull()
+      .references(() => challengeDay.date),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    division: text("division").notNull(),
+    recipientName: text("recipient_name").notNull(),
+    steps: integer("steps").notNull(),
+    imageUrl: text("image_url").notNull(),
+  },
+  (table) => [
+    unique("star_day_certificate_date_user_unique").on(
+      table.activityDate,
+      table.userId,
+    ),
+    index("star_day_certificate_activity_date_idx").on(table.activityDate),
+  ],
+);
+
 export const usersRelations = relations(users, ({ many }) => ({
   activities: many(activities),
 }));

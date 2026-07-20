@@ -18,6 +18,37 @@ export function formatDisplayDate(date: string): string {
   }).format(parsed);
 }
 
+function ordinalSuffix(day: number): string {
+  if (day >= 11 && day <= 13) {
+    return "th";
+  }
+
+  switch (day % 10) {
+    case 1:
+      return "st";
+    case 2:
+      return "nd";
+    case 3:
+      return "rd";
+    default:
+      return "th";
+  }
+}
+
+/** Certificate footer style, e.g. "19th july". */
+export function formatCertificateDate(date: string): string {
+  const parsed = parseDateString(date);
+  const day = parsed.getUTCDate();
+  const month = new Intl.DateTimeFormat("en-IN", {
+    month: "long",
+    timeZone: "UTC",
+  })
+    .format(parsed)
+    .toLowerCase();
+
+  return `${day}${ordinalSuffix(day)} ${month}`;
+}
+
 export function parseDateString(date: string): Date {
   const [year, month, day] = date.split("-").map(Number);
   return new Date(Date.UTC(year, month - 1, day));
