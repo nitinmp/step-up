@@ -1,21 +1,24 @@
-import { desc, eq, inArray } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 import { getDb } from "@/db";
-import {
-  starDayCertificate,
-  starDayCertificateRun,
-  users,
-} from "@/db/schema";
+import { users } from "@/db/schema";
 import { ActivityError } from "@/lib/activities-service";
 import { deleteBlobUrl, uploadBlob } from "@/lib/blob-storage";
 import { renderStarDayCertificate } from "@/lib/certificate-template";
+import { CERTIFICATE_TYPES } from "@/lib/certificate-types";
 import type { Division } from "@/lib/divisions";
-import { parseDivision } from "@/lib/divisions";
 import { divisionsActiveOnDate } from "@/lib/group-rules";
-import {
-  computeDailyLeaderboard,
-} from "@/lib/period-leaderboard";
+import { computeDailyLeaderboard } from "@/lib/period-leaderboard";
 import { loadScoringDataset } from "@/lib/scoring-dataset";
+import {
+  createCertificateRun,
+  deleteStarDayCertificatesForTarget,
+  findCertificateRunByDate,
+  insertUserCertificate,
+  listCertificateRuns,
+  listStarDayCertificatesByTargets,
+  rowDivision,
+} from "@/lib/user-certificate-store";
 
 export type AdminCertificateRecord = {
   id: string;
@@ -97,31 +100,19 @@ async function loadCertificatesByDate(
     return map;
   }
 
-  const db = getDb();
-  const rows = await db
-    .select({
-      id: starDayCertificate.id,
-      activityDate: starDayCertificate.activityDate,
-      userId: starDayCertificate.userId,
-      recipientName: starDayCertificate.recipientName,
-      division: starDayCertificate.division,
-      steps: starDayCertificate.steps,
-      imageUrl: starDayCertificate.imageUrl,
-    })
-    .from(starDayCertificate)
-    .where(inArray(starDayCertificate.activityDate, dates));
+  const rows = await listStarDayCertificatesByTargets(dates);
 
   for (const row of rows) {
-    const list = map.get(row.activityDate) ?? [];
+    const list = map.get(row.target) ?? [];
     list.push({
       id: row.id,
       userId: row.userId,
-      recipientName: row.recipientName,
-      division: parseDivision(row.division),
-      steps: row.steps,
+      recipientName: row.recipientName ?? "Participant",
+      division: rowDivision(row),
+      steps: row.steps ?? 0,
       imageUrl: row.imageUrl,
     });
-    map.set(row.activityDate, list);
+    map.set(row.target, list);
   }
 
   for (const [date, list] of map) {
@@ -144,15 +135,11 @@ async function loadRunsByDate(
   >
 > {
   const db = getDb();
-  const runs = await db
-    .select({
-      activityDate: starDayCertificateRun.activityDate,
-      generatedAt: starDayCertificateRun.generatedAt,
-      generatedByName: users.name,
-    })
-    .from(starDayCertificateRun)
-    .leftJoin(users, eq(starDayCertificateRun.generatedBy, users.id))
-    .orderBy(desc(starDayCertificateRun.generatedAt));
+  const runRows = await listCertificateRuns();
+  const adminNames = await db
+    .select({ id: users.id, name: users.name })
+    .from(users);
+  const nameById = new Map(adminNames.map((row) => [row.id, row.name]));
 
   const map = new Map<
     string,
@@ -162,13 +149,15 @@ async function loadRunsByDate(
     }
   >();
 
-  for (const run of runs) {
+  for (const run of runRows) {
     if (!dates.includes(run.activityDate) || map.has(run.activityDate)) {
       continue;
     }
     map.set(run.activityDate, {
       generatedAt: run.generatedAt.toISOString(),
-      generatedByName: run.generatedByName,
+      generatedByName: run.generatedBy
+        ? (nameById.get(run.generatedBy) ?? null)
+        : null,
     });
   }
 
@@ -216,20 +205,6 @@ export async function getAdminCertificateSnapshot(): Promise<AdminCertificateSna
   };
 }
 
-async function removeExistingCertificatesForDate(date: string) {
-  const db = getDb();
-  const existing = await db
-    .select({ imageUrl: starDayCertificate.imageUrl })
-    .from(starDayCertificate)
-    .where(eq(starDayCertificate.activityDate, date));
-
-  await Promise.all(existing.map((row) => deleteBlobUrl(row.imageUrl)));
-
-  await db
-    .delete(starDayCertificateRun)
-    .where(eq(starDayCertificateRun.activityDate, date));
-}
-
 export async function generateStarDayCertificates(input: {
   date: string;
   adminUserId: string;
@@ -257,26 +232,16 @@ export async function generateStarDayCertificates(input: {
     );
   }
 
-  const db = getDb();
-  const [existingRun] = await db
-    .select({ id: starDayCertificateRun.id })
-    .from(starDayCertificateRun)
-    .where(eq(starDayCertificateRun.activityDate, input.date))
-    .limit(1);
-
+  const existingRun = await findCertificateRunByDate(input.date);
   if (existingRun) {
-    await removeExistingCertificatesForDate(input.date);
+    const imageUrls = await deleteStarDayCertificatesForTarget(input.date);
+    await Promise.all(imageUrls.map((url) => deleteBlobUrl(url)));
   }
 
-  const [run] = await db
-    .insert(starDayCertificateRun)
-    .values({
-      activityDate: input.date,
-      generatedBy: input.adminUserId,
-    })
-    .returning({
-      id: starDayCertificateRun.id,
-    });
+  const run = await createCertificateRun({
+    activityDate: input.date,
+    generatedBy: input.adminUserId,
+  });
 
   if (!run) {
     throw new ActivityError("Could not create certificate run.", 500);
@@ -293,27 +258,21 @@ export async function generateStarDayCertificates(input: {
     });
 
     const pathname = `certificates/star-day/${input.date}/${winner.userId}.png`;
-    const blob = await uploadBlob(pathname, png, "image/png");
+    const blob = await uploadBlob(pathname, png, "image/png", {
+      allowOverwrite: true,
+    });
 
-    const [record] = await db
-      .insert(starDayCertificate)
-      .values({
-        runId: run.id,
-        activityDate: input.date,
-        userId: winner.userId,
-        division: winner.division,
-        recipientName: winner.name,
-        steps: winner.steps,
-        imageUrl: blob.url,
-      })
-      .returning({
-        id: starDayCertificate.id,
-        userId: starDayCertificate.userId,
-        recipientName: starDayCertificate.recipientName,
-        division: starDayCertificate.division,
-        steps: starDayCertificate.steps,
-        imageUrl: starDayCertificate.imageUrl,
-      });
+    const record = await insertUserCertificate({
+      userId: winner.userId,
+      certificateType: CERTIFICATE_TYPES.STAR_DAY,
+      target: input.date,
+      imageUrl: blob.url,
+      generatedBy: input.adminUserId,
+      runId: run.id,
+      recipientName: winner.name,
+      division: winner.division,
+      steps: winner.steps,
+    });
 
     if (!record) {
       throw new ActivityError("Could not save certificate.", 500);
@@ -322,15 +281,16 @@ export async function generateStarDayCertificates(input: {
     certificates.push({
       id: record.id,
       userId: record.userId,
-      recipientName: record.recipientName,
-      division: parseDivision(record.division),
-      steps: record.steps,
+      recipientName: winner.name,
+      division: winner.division,
+      steps: winner.steps,
       imageUrl: record.imageUrl,
     });
   }
 
   certificates.sort((a, b) => a.recipientName.localeCompare(b.recipientName));
 
+  const db = getDb();
   const [generatedBy] = await db
     .select({ name: users.name })
     .from(users)

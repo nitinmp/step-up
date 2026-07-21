@@ -27,6 +27,7 @@ export default async function ActivitiesPage() {
       points={dashboard.points}
       pushCallout={dashboard.pushCallout}
       rankChase={dashboard.rankChase}
+      starCertificateDates={dashboard.starCertificateDates}
       streakCalendar={dashboard.streakCalendar}
     />
   );

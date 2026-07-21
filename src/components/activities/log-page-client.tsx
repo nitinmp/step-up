@@ -9,6 +9,7 @@ import {
   type LogSubmitResult,
 } from "@/components/activities/log-activity-form";
 import { AchievementBadgeGrid } from "@/components/badges/achievement-badge-grid";
+import { ParticipantCertificatesTab } from "@/components/certificates/participant-certificates-tab";
 import { BottomDrawer } from "@/components/ui/bottom-drawer";
 import type { EditActivityContext } from "@/lib/activities-service";
 import { fireActivityLogConfetti } from "@/lib/confetti";
@@ -29,11 +30,16 @@ type LogContext = {
   allowOpenChallengeLogging: boolean;
 };
 
+type LogTab = "badges" | "certificates";
+
 type LogPageClientProps = {
   logContext: LogContext;
   achievements: UserAchievementState[];
   badgeEarnedCount: number;
   badgeTotalCount: number;
+  initialTab?: LogTab;
+  initialStarDate?: string | null;
+  initialWeekNo?: number | null;
   editActivity?: EditActivityContext;
 };
 
@@ -42,12 +48,19 @@ export function LogPageClient({
   achievements,
   badgeEarnedCount,
   badgeTotalCount,
+  initialTab = "badges",
+  initialStarDate = null,
+  initialWeekNo = null,
   editActivity,
 }: LogPageClientProps) {
   const router = useRouter();
   const isEdit = Boolean(editActivity);
   const [drawerOpen, setDrawerOpen] = useState(isEdit);
   const [formKey, setFormKey] = useState(0);
+  const [activeTab, setActiveTab] = useState<LogTab>(initialTab);
+  const [certificatesVisited, setCertificatesVisited] = useState(
+    initialTab === "certificates",
+  );
 
   const achievementDisplays = useMemo(
     () => achievementsToDisplay(achievements),
@@ -79,10 +92,26 @@ export function LogPageClient({
   }, [isEdit]);
 
   useEffect(() => {
-    if (window.location.hash === "#badges") {
-      document.getElementById("badges")?.scrollIntoView({ behavior: "smooth" });
+    const hash = window.location.hash;
+    if (hash === "#certificates") {
+      setActiveTab("certificates");
+      setCertificatesVisited(true);
+    } else if (hash === "#badges") {
+      setActiveTab("badges");
     }
   }, []);
+
+  function selectTab(tab: LogTab) {
+    setActiveTab(tab);
+    if (tab === "certificates") {
+      setCertificatesVisited(true);
+    }
+    window.history.replaceState(
+      null,
+      "",
+      tab === "certificates" ? "/log#certificates" : "/log#badges",
+    );
+  }
 
   function openDrawer() {
     if (!canLog) {
@@ -131,22 +160,64 @@ export function LogPageClient({
         <p className="text-sm text-muted">{unavailableMessage}</p>
       ) : null}
 
-      <div className="grid grid-cols-3 gap-2 text-center text-sm">
-        <BadgeStat label="Earned" value={badgeEarnedCount} />
-        <BadgeStat label="Total series" value={badgeTotalCount} />
-        <BadgeStat
-          label="In progress"
-          value={achievements.filter((entry) => entry.earnedTierIndex === null).length}
-        />
-      </div>
+      <section className="space-y-4">
+        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+          <button
+            className={cn(
+              "text-base font-semibold transition",
+              activeTab === "badges"
+                ? "text-foreground"
+                : "text-muted hover:text-foreground",
+            )}
+            onClick={() => selectTab("badges")}
+            type="button"
+          >
+            Your badges · {badgeEarnedCount} of {badgeTotalCount}
+          </button>
+          <span aria-hidden="true" className="text-muted">
+            |
+          </span>
+          <button
+            className={cn(
+              "text-base font-semibold transition",
+              activeTab === "certificates"
+                ? "text-brand"
+                : "text-muted hover:text-brand",
+            )}
+            onClick={() => selectTab("certificates")}
+            type="button"
+          >
+            Certificates
+          </button>
+        </div>
 
-      <div id="badges">
-        <AchievementBadgeGrid
-          achievements={achievementDisplays}
-          emptyMessage="No badges earned yet. Keep logging to unlock achievements."
-          title={`Your badges · ${badgeEarnedCount} of ${badgeTotalCount}`}
-        />
-      </div>
+        {activeTab === "badges" ? (
+          <div className="space-y-4" id="badges">
+            <div className="grid grid-cols-3 gap-2 text-center text-sm">
+              <BadgeStat label="Earned" value={badgeEarnedCount} />
+              <BadgeStat label="Total series" value={badgeTotalCount} />
+              <BadgeStat
+                label="In progress"
+                value={
+                  achievements.filter((entry) => entry.earnedTierIndex === null)
+                    .length
+                }
+              />
+            </div>
+
+            <AchievementBadgeGrid
+              achievements={achievementDisplays}
+              emptyMessage="No badges earned yet. Keep logging to unlock achievements."
+              hideHeader
+            />
+          </div>
+        ) : certificatesVisited ? (
+          <ParticipantCertificatesTab
+            initialStarDate={initialStarDate}
+            initialWeekNo={initialWeekNo}
+          />
+        ) : null}
+      </section>
 
       <BottomDrawer
         onClose={closeDrawer}

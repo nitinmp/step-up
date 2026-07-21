@@ -18,6 +18,14 @@ export function formatDisplayDate(date: string): string {
   }).format(parsed);
 }
 
+export function weekdayShortLabel(date: string): string {
+  const parsed = parseDateString(date);
+  return new Intl.DateTimeFormat("en-IN", {
+    weekday: "short",
+    timeZone: "UTC",
+  }).format(parsed);
+}
+
 function ordinalSuffix(day: number): string {
   if (day >= 11 && day <= 13) {
     return "th";

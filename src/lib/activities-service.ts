@@ -23,6 +23,9 @@ import {
   filterStandingsByDivision,
 } from "@/lib/standings";
 import { parseDivision, type Division } from "@/lib/divisions";
+import {
+  getParticipantStarCertificateDates,
+} from "@/lib/certificate-service";
 import { getDivisionForDate } from "@/lib/division-as-of-cutover";
 import { distanceKmToStorage, parseDistanceKm } from "@/lib/distance";
 import {
@@ -268,7 +271,7 @@ export const getActivitiesDashboard = cache(async function getActivitiesDashboar
   const db = getDb();
   const { config, days, today } = await getChallengeWindow();
 
-  const [userActivities, approvedForStars, standings, userDivisionMaps, dataset] =
+  const [userActivities, approvedForStars, standings, userDivisionMaps, dataset, starCertificateDates] =
     await Promise.all([
     db
       .select({
@@ -294,6 +297,7 @@ export const getActivitiesDashboard = cache(async function getActivitiesDashboar
     computeStandings(),
     loadUserDivisionMaps(db),
     loadScoringDataset(),
+    getParticipantStarCertificateDates(userId),
   ]);
 
   const activityByDate = new Map(
@@ -462,6 +466,7 @@ export const getActivitiesDashboard = cache(async function getActivitiesDashboar
     dayRows,
     loggedActivities,
     weekStats,
+    starCertificateDates,
   };
 });
 

@@ -8,6 +8,7 @@ type AchievementBadgeGridProps = {
   showLockedCatalogWhenEmpty?: boolean;
   lockedCatalog?: BadgeAchievementDisplay[];
   title?: string;
+  hideHeader?: boolean;
   className?: string;
 };
 
@@ -17,20 +18,23 @@ export function AchievementBadgeGrid({
   showLockedCatalogWhenEmpty = false,
   lockedCatalog = [],
   title = "Your badges",
+  hideHeader = false,
   className,
 }: AchievementBadgeGridProps) {
   const showCatalog = showLockedCatalogWhenEmpty && achievements.length === 0;
 
   return (
     <section className={cn("space-y-3", className)}>
-      <div className="flex items-end justify-between gap-3">
-        <h2 className="text-sm font-semibold uppercase tracking-[0.15em] text-muted">
-          {title}
-        </h2>
-        {achievements.length > 0 ? (
-          <p className="text-xs text-muted">{achievements.length} earned</p>
-        ) : null}
-      </div>
+      {!hideHeader ? (
+        <div className="flex items-end justify-between gap-3">
+          <h2 className="text-sm font-semibold uppercase tracking-[0.15em] text-muted">
+            {title}
+          </h2>
+          {achievements.length > 0 ? (
+            <p className="text-xs text-muted">{achievements.length} earned</p>
+          ) : null}
+        </div>
+      ) : null}
 
       {achievements.length > 0 ? (
         <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">

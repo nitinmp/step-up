@@ -24,10 +24,15 @@ export async function uploadBlob(
   pathname: string,
   body: File | Blob | ArrayBuffer | Buffer,
   contentType: string,
+  options?: { allowOverwrite?: boolean },
 ) {
+  const allowOverwrite =
+    options?.allowOverwrite ?? pathname.startsWith("certificates/");
+
   return put(pathname, body, {
     access: BLOB_ACCESS,
     token: appConfig.blobReadWriteToken,
     contentType,
+    allowOverwrite,
   });
 }

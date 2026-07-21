@@ -160,8 +160,8 @@ export const weekScoringRunEntry = pgTable(
   (table) => [primaryKey({ columns: [table.runId, table.userId] })],
 );
 
-export const starDayCertificateRun = pgTable(
-  "star_day_certificate_run",
+export const certificateRun = pgTable(
+  "certificate_run",
   {
     id: uuid("id").defaultRandom().primaryKey(),
     activityDate: date("activity_date")
@@ -175,35 +175,44 @@ export const starDayCertificateRun = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (table) => [
-    index("star_day_certificate_run_activity_date_idx").on(table.activityDate),
-  ],
+  (table) => [index("certificate_run_activity_date_idx").on(table.activityDate)],
 );
 
-export const starDayCertificate = pgTable(
-  "star_day_certificate",
+export const userCertificate = pgTable(
+  "user_certificate",
   {
     id: uuid("id").defaultRandom().primaryKey(),
-    runId: uuid("run_id")
-      .notNull()
-      .references(() => starDayCertificateRun.id, { onDelete: "cascade" }),
-    activityDate: date("activity_date")
-      .notNull()
-      .references(() => challengeDay.date),
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    division: text("division").notNull(),
-    recipientName: text("recipient_name").notNull(),
-    steps: integer("steps").notNull(),
+    certificateType: text("certificate_type").notNull(),
+    target: text("target").notNull(),
     imageUrl: text("image_url").notNull(),
+    generatedAt: timestamp("generated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    generatedBy: uuid("generated_by").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    runId: uuid("run_id").references(() => certificateRun.id, {
+      onDelete: "cascade",
+    }),
+    recipientName: text("recipient_name"),
+    division: text("division"),
+    steps: integer("steps"),
+    metadata: text("metadata"),
   },
   (table) => [
-    unique("star_day_certificate_date_user_unique").on(
-      table.activityDate,
+    unique("user_certificate_user_type_target_unique").on(
       table.userId,
+      table.certificateType,
+      table.target,
     ),
-    index("star_day_certificate_activity_date_idx").on(table.activityDate),
+    index("user_certificate_user_idx").on(table.userId),
+    index("user_certificate_type_target_idx").on(
+      table.certificateType,
+      table.target,
+    ),
   ],
 );
 

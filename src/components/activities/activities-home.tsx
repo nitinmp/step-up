@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { AchievementBadgeCompact } from "@/components/badges/achievement-badge-compact";
 import { AchievementUnlockedModal } from "@/components/badges/achievement-unlocked-modal";
+import { CertificateViewDrawer } from "@/components/certificates/certificate-view-drawer";
+import { BottomDrawer } from "@/components/ui/bottom-drawer";
 import type {
   ActivityRecord,
   ClimbWeek,
@@ -20,6 +22,7 @@ import { formatDistanceKm } from "@/lib/distance";
 import type { Division } from "@/lib/divisions";
 import { divisionLabel } from "@/lib/divisions";
 import type { DashboardAggregates } from "@/lib/dashboard-stats";
+import type { WeekProgressCertificate } from "@/lib/certificate-service";
 import { cn } from "@/lib/cn";
 
 export type ActivitiesHomeProps = {
@@ -39,6 +42,7 @@ export type ActivitiesHomeProps = {
   loggedActivities: Array<
     DashboardDay & { activity: ActivityRecord & { isBeast: boolean; isStarOfDay: boolean } }
   >;
+  starCertificateDates: string[];
 };
 
 export function ActivitiesHome(props: ActivitiesHomeProps) {
@@ -67,6 +71,40 @@ export function ActivitiesHome(props: ActivitiesHomeProps) {
     : props.loggedActivities.slice(0, activitiesPreviewLimit);
 
   const badgeDisplays = achievementsToDisplay(props.badgePreview);
+  const starCertificateDateSet = new Set(props.starCertificateDates);
+  const [selectedWeekCertificate, setSelectedWeekCertificate] =
+    useState<WeekProgressCertificate | null>(null);
+  const [loadingWeekNo, setLoadingWeekNo] = useState<number | null>(null);
+  const [weekReportError, setWeekReportError] = useState<string | null>(null);
+
+  const openWeekProgressReport = useCallback(async (weekNo: number) => {
+    setLoadingWeekNo(weekNo);
+    setWeekReportError(null);
+
+    try {
+      const response = await fetch(`/api/certificates/week/${weekNo}`, {
+        method: "POST",
+      });
+      const data = (await response.json()) as {
+        certificate?: WeekProgressCertificate;
+        error?: string;
+      };
+
+      if (!response.ok || !data.certificate) {
+        throw new Error(data.error ?? "Could not load progress report.");
+      }
+
+      setSelectedWeekCertificate(data.certificate);
+    } catch (error) {
+      setWeekReportError(
+        error instanceof Error
+          ? error.message
+          : "Could not load progress report.",
+      );
+    } finally {
+      setLoadingWeekNo(null);
+    }
+  }, []);
 
   return (
     <div className="space-y-4 pb-4">
@@ -107,7 +145,11 @@ export function ActivitiesHome(props: ActivitiesHomeProps) {
         streak={props.aggregates.currentLoggingStreak}
       />
 
-      <ClimbSection weeks={props.climbWeeks} />
+      <ClimbSection
+        loadingWeekNo={loadingWeekNo}
+        onWeekClick={openWeekProgressReport}
+        weeks={props.climbWeeks}
+      />
 
       <section className="space-y-3">
         <div className="flex items-end justify-between gap-3">
@@ -137,7 +179,11 @@ export function ActivitiesHome(props: ActivitiesHomeProps) {
         ) : (
           <div className="space-y-3">
             {visibleActivities.map((day) => (
-              <ActivityCard day={day} key={day.activity.id} />
+              <ActivityCard
+                day={day}
+                hasStarCertificate={starCertificateDateSet.has(day.date)}
+                key={day.activity.id}
+              />
             ))}
           </div>
         )}
@@ -149,6 +195,19 @@ export function ActivitiesHome(props: ActivitiesHomeProps) {
           onClose={() => setUnlockQueue((queue) => queue.slice(1))}
         />
       ) : null}
+
+      <CertificateViewDrawer
+        certificate={selectedWeekCertificate}
+        onClose={() => setSelectedWeekCertificate(null)}
+      />
+
+      <BottomDrawer
+        onClose={() => setWeekReportError(null)}
+        open={Boolean(weekReportError)}
+        title="Progress report"
+      >
+        <p className="text-sm text-danger">{weekReportError}</p>
+      </BottomDrawer>
     </div>
   );
 }
@@ -333,7 +392,17 @@ function StreakChainSection({
 
 const CLIMB_BAR_HEIGHTS = ["h-14", "h-[4.5rem]", "h-20", "h-[5.5rem]"] as const;
 
-function ClimbSection({ weeks }: { weeks: ClimbWeek[] }) {
+const CLIMB_WEEK_EMOJIS = ["🥇", "🥈", "🥉", "🏅"] as const;
+
+function ClimbSection({
+  weeks,
+  loadingWeekNo,
+  onWeekClick,
+}: {
+  weeks: ClimbWeek[];
+  loadingWeekNo: number | null;
+  onWeekClick: (weekNo: number) => void;
+}) {
   return (
     <section className="rounded-3xl border border-black/5 bg-surface p-5 shadow-sm">
       <h2 className="text-base font-semibold text-foreground">The climb</h2>
@@ -345,6 +414,8 @@ function ClimbSection({ weeks }: { weeks: ClimbWeek[] }) {
               : 0;
           const heightClass = CLIMB_BAR_HEIGHTS[week.weekNo - 1] ?? "h-20";
           const showFill = week.status !== "upcoming" && progress > 0;
+          const isInteractive = week.status !== "upcoming";
+          const isLoading = loadingWeekNo === week.weekNo;
 
           return (
             <div
@@ -352,18 +423,17 @@ function ClimbSection({ weeks }: { weeks: ClimbWeek[] }) {
               key={week.weekNo}
             >
               <div
-                aria-label={`Week ${week.weekNo}, ${week.daysMet} of ${week.totalDays} target days met`}
+                aria-hidden="true"
                 className={cn(
                   "relative w-full overflow-hidden rounded-2xl bg-black/[0.06]",
                   heightClass,
                   week.status === "current" && "ring-2 ring-brand/25",
                 )}
-                role="img"
               >
                 {showFill ? (
                   <div
                     className={cn(
-                      "absolute inset-x-0 bottom-0 rounded-b-2xl",
+                      "absolute inset-x-0 bottom-0 rounded-b-2xl transition-all",
                       week.status === "completed" ? "bg-brand" : "bg-brand/75",
                     )}
                     style={{ height: `${progress}%` }}
@@ -382,11 +452,37 @@ function ClimbSection({ weeks }: { weeks: ClimbWeek[] }) {
                   {week.targetLabel}
                 </span>
               </div>
-              <p className="text-center text-[10px] font-semibold text-foreground">
-                W{week.weekNo}
-              </p>
+
+              <button
+                aria-label={
+                  isInteractive
+                    ? `Open Week ${week.weekNo} progress report`
+                    : `Week ${week.weekNo} starts ${formatDisplayDate(week.startDate)}`
+                }
+                className={cn(
+                  "inline-flex min-w-[3.5rem] items-center justify-center gap-1 rounded-full border-2 px-3 py-2 text-xs font-extrabold tracking-wide transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2",
+                  week.status === "completed" &&
+                    "border-amber-500 bg-gradient-to-b from-yellow-200 via-amber-300 to-yellow-500 text-amber-950 shadow-[0_4px_14px_rgba(251,191,36,0.45)] hover:from-yellow-100 hover:via-amber-200 hover:to-amber-400 hover:shadow-[0_6px_18px_rgba(251,191,36,0.55)] active:scale-[0.97]",
+                  week.status === "current" &&
+                    "border-amber-400 bg-gradient-to-b from-amber-100 via-yellow-300 to-amber-400 text-amber-950 shadow-[0_4px_16px_rgba(245,158,11,0.5)] ring-2 ring-amber-300/60 hover:shadow-[0_6px_20px_rgba(245,158,11,0.6)] active:scale-[0.97]",
+                  week.status === "upcoming" &&
+                    "cursor-not-allowed border-black/10 bg-black/[0.06] text-muted",
+                  isLoading && "cursor-wait opacity-70",
+                )}
+                disabled={!isInteractive || loadingWeekNo !== null}
+                onClick={() => onWeekClick(week.weekNo)}
+                type="button"
+              >
+                <span aria-hidden="true" className="text-sm leading-none">
+                  {isLoading
+                    ? "…"
+                    : (CLIMB_WEEK_EMOJIS[week.weekNo - 1] ?? "📊")}
+                </span>
+                <span>{`W${week.weekNo}`}</span>
+              </button>
+
               {week.status === "completed" ? (
-                <p className="text-center text-[10px] text-brand">
+                <p className="text-center text-[10px] font-medium text-brand">
                   Done ✓ {week.daysMet}/{week.totalDays}
                 </p>
               ) : week.status === "current" ? (
@@ -408,8 +504,10 @@ function ClimbSection({ weeks }: { weeks: ClimbWeek[] }) {
 
 function ActivityCard({
   day,
+  hasStarCertificate,
 }: {
   day: ActivitiesHomeProps["loggedActivities"][number];
+  hasStarCertificate: boolean;
 }) {
   const activity = day.activity;
   const isPending = activity.status === "pending";
@@ -501,6 +599,17 @@ function ActivityCard({
             href={`/log?edit=${activity.id}`}
           >
             Edit
+          </Link>
+        </div>
+      ) : null}
+
+      {activity.isStarOfDay && hasStarCertificate ? (
+        <div className="mt-3 flex justify-end">
+          <Link
+            className="inline-flex rounded-full bg-gold/20 px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-gold/30"
+            href={`/log?tab=certificates&cert=${day.date}`}
+          >
+            View certificate
           </Link>
         </div>
       ) : null}

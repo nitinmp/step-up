@@ -10,8 +10,38 @@ import {
 import { getParticipantBadgesPage } from "@/lib/participant-badges-service";
 
 type LogPageProps = {
-  searchParams: Promise<{ edit?: string }>;
+  searchParams: Promise<{
+    edit?: string;
+    cert?: string;
+    week?: string;
+    tab?: string;
+  }>;
 };
+
+function resolveInitialTab(
+  tab: string | undefined,
+  certDate: string | undefined,
+  week: string | undefined,
+): "badges" | "certificates" {
+  if (tab === "certificates" || certDate || week) {
+    return "certificates";
+  }
+
+  return "badges";
+}
+
+function resolveInitialWeekNo(week: string | undefined): number | null {
+  if (!week) {
+    return null;
+  }
+
+  const parsed = Number.parseInt(week, 10);
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 4) {
+    return null;
+  }
+
+  return parsed;
+}
 
 export default async function LogPage({ searchParams }: LogPageProps) {
   const session = await auth();
@@ -19,8 +49,10 @@ export default async function LogPage({ searchParams }: LogPageProps) {
     redirect("/login");
   }
 
-  const { edit } = await searchParams;
+  const { edit, cert: certDate, week, tab } = await searchParams;
   const userId = session.user.id;
+  const initialTab = resolveInitialTab(tab, certDate, week);
+  const initialWeekNo = resolveInitialWeekNo(week);
 
   const [context, badgesPage] = await Promise.all([
     getLogContext(userId),
@@ -44,6 +76,9 @@ export default async function LogPage({ searchParams }: LogPageProps) {
           badgeEarnedCount={badgesPage.badgeEarnedCount}
           badgeTotalCount={badgesPage.badgeTotalCount}
           editActivity={editActivity}
+          initialStarDate={certDate ?? null}
+          initialTab={initialTab}
+          initialWeekNo={initialWeekNo}
           logContext={context}
         />
       );
@@ -60,6 +95,9 @@ export default async function LogPage({ searchParams }: LogPageProps) {
       achievements={badgesPage.achievements}
       badgeEarnedCount={badgesPage.badgeEarnedCount}
       badgeTotalCount={badgesPage.badgeTotalCount}
+      initialStarDate={certDate ?? null}
+      initialTab={initialTab}
+      initialWeekNo={initialWeekNo}
       logContext={context}
     />
   );
