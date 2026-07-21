@@ -161,32 +161,30 @@ export function LogPageClient({
       ) : null}
 
       <section className="space-y-4">
-        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             className={cn(
-              "text-base font-semibold transition",
+              "rounded-full px-4 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2",
               activeTab === "badges"
-                ? "text-foreground"
-                : "text-muted hover:text-foreground",
+                ? "bg-black/[0.06] text-foreground"
+                : "text-muted hover:bg-black/[0.04] hover:text-foreground",
             )}
             onClick={() => selectTab("badges")}
             type="button"
           >
             Your badges · {badgeEarnedCount} of {badgeTotalCount}
           </button>
-          <span aria-hidden="true" className="text-muted">
-            |
-          </span>
           <button
             className={cn(
-              "text-base font-semibold transition",
+              "inline-flex items-center gap-1.5 rounded-full border-2 px-4 py-2 text-sm font-extrabold tracking-wide transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2",
               activeTab === "certificates"
-                ? "text-brand"
-                : "text-muted hover:text-brand",
+                ? "border-amber-500 bg-gradient-to-b from-yellow-200 via-amber-300 to-yellow-500 text-amber-950 shadow-[0_4px_14px_rgba(251,191,36,0.45)]"
+                : "border-amber-400 bg-gradient-to-b from-amber-50 via-yellow-100 to-amber-200 text-amber-900 shadow-[0_3px_12px_rgba(251,191,36,0.25)] hover:from-yellow-100 hover:via-amber-200 hover:to-amber-300 hover:shadow-[0_4px_16px_rgba(251,191,36,0.35)]",
             )}
             onClick={() => selectTab("certificates")}
             type="button"
           >
+            <span aria-hidden="true">🏅</span>
             Certificates
           </button>
         </div>

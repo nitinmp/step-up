@@ -6,7 +6,8 @@ import { useCallback, useEffect, useState } from "react";
 import { AchievementBadgeCompact } from "@/components/badges/achievement-badge-compact";
 import { AchievementUnlockedModal } from "@/components/badges/achievement-unlocked-modal";
 import { CertificateViewDrawer } from "@/components/certificates/certificate-view-drawer";
-import { BottomDrawer } from "@/components/ui/bottom-drawer";
+import type { CertificateLoadStage } from "@/lib/certificate-client-loading";
+import { resolveCertificateWithStages } from "@/lib/certificate-client-loading";
 import type {
   ActivityRecord,
   ClimbWeek,
@@ -72,37 +73,58 @@ export function ActivitiesHome(props: ActivitiesHomeProps) {
 
   const badgeDisplays = achievementsToDisplay(props.badgePreview);
   const starCertificateDateSet = new Set(props.starCertificateDates);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerTitle, setDrawerTitle] = useState("");
   const [selectedWeekCertificate, setSelectedWeekCertificate] =
     useState<WeekProgressCertificate | null>(null);
   const [loadingWeekNo, setLoadingWeekNo] = useState<number | null>(null);
-  const [weekReportError, setWeekReportError] = useState<string | null>(null);
+  const [loadStage, setLoadStage] = useState<CertificateLoadStage | null>(null);
+  const [drawerError, setDrawerError] = useState<string | null>(null);
+
+  const closeWeekReportDrawer = useCallback(() => {
+    setDrawerOpen(false);
+    setSelectedWeekCertificate(null);
+    setDrawerError(null);
+    setLoadStage(null);
+    setLoadingWeekNo(null);
+    setDrawerTitle("");
+  }, []);
 
   const openWeekProgressReport = useCallback(async (weekNo: number) => {
+    setDrawerOpen(true);
+    setDrawerTitle(`Week ${weekNo} progress report`);
+    setSelectedWeekCertificate(null);
     setLoadingWeekNo(weekNo);
-    setWeekReportError(null);
+    setLoadStage("fetching");
+    setDrawerError(null);
 
     try {
-      const response = await fetch(`/api/certificates/week/${weekNo}`, {
-        method: "POST",
-      });
-      const data = (await response.json()) as {
-        certificate?: WeekProgressCertificate;
-        error?: string;
-      };
+      const certificate = await resolveCertificateWithStages(async () => {
+        const response = await fetch(`/api/certificates/week/${weekNo}`, {
+          method: "POST",
+        });
+        const data = (await response.json()) as {
+          certificate?: WeekProgressCertificate;
+          error?: string;
+        };
 
-      if (!response.ok || !data.certificate) {
-        throw new Error(data.error ?? "Could not load progress report.");
-      }
+        if (!response.ok || !data.certificate) {
+          throw new Error(data.error ?? "Could not load progress report.");
+        }
 
-      setSelectedWeekCertificate(data.certificate);
+        return data.certificate;
+      }, setLoadStage);
+
+      setSelectedWeekCertificate(certificate);
     } catch (error) {
-      setWeekReportError(
+      setDrawerError(
         error instanceof Error
           ? error.message
           : "Could not load progress report.",
       );
     } finally {
       setLoadingWeekNo(null);
+      setLoadStage(null);
     }
   }, []);
 
@@ -198,16 +220,13 @@ export function ActivitiesHome(props: ActivitiesHomeProps) {
 
       <CertificateViewDrawer
         certificate={selectedWeekCertificate}
-        onClose={() => setSelectedWeekCertificate(null)}
+        error={drawerError}
+        loadStage={loadStage}
+        loading={Boolean(loadStage)}
+        onClose={closeWeekReportDrawer}
+        open={drawerOpen}
+        title={drawerTitle}
       />
-
-      <BottomDrawer
-        onClose={() => setWeekReportError(null)}
-        open={Boolean(weekReportError)}
-        title="Progress report"
-      >
-        <p className="text-sm text-danger">{weekReportError}</p>
-      </BottomDrawer>
     </div>
   );
 }
@@ -415,7 +434,6 @@ function ClimbSection({
           const heightClass = CLIMB_BAR_HEIGHTS[week.weekNo - 1] ?? "h-20";
           const showFill = week.status !== "upcoming" && progress > 0;
           const isInteractive = week.status !== "upcoming";
-          const isLoading = loadingWeekNo === week.weekNo;
 
           return (
             <div
@@ -467,16 +485,16 @@ function ClimbSection({
                     "border-amber-400 bg-gradient-to-b from-amber-100 via-yellow-300 to-amber-400 text-amber-950 shadow-[0_4px_16px_rgba(245,158,11,0.5)] ring-2 ring-amber-300/60 hover:shadow-[0_6px_20px_rgba(245,158,11,0.6)] active:scale-[0.97]",
                   week.status === "upcoming" &&
                     "cursor-not-allowed border-black/10 bg-black/[0.06] text-muted",
-                  isLoading && "cursor-wait opacity-70",
+                  loadingWeekNo !== null &&
+                    loadingWeekNo !== week.weekNo &&
+                    "opacity-60",
                 )}
                 disabled={!isInteractive || loadingWeekNo !== null}
                 onClick={() => onWeekClick(week.weekNo)}
                 type="button"
               >
                 <span aria-hidden="true" className="text-sm leading-none">
-                  {isLoading
-                    ? "…"
-                    : (CLIMB_WEEK_EMOJIS[week.weekNo - 1] ?? "📊")}
+                  {CLIMB_WEEK_EMOJIS[week.weekNo - 1] ?? "📊"}
                 </span>
                 <span>{`W${week.weekNo}`}</span>
               </button>

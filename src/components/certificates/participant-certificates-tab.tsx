@@ -8,11 +8,12 @@ import {
   type ViewableCertificate,
 } from "@/components/certificates/certificate-view-drawer";
 import type { CertificateGalleryItem } from "@/lib/certificate-gallery-service";
-import type {
-  StarDayCertificate,
-  StarWeekCertificate,
-  WeekProgressCertificate,
-} from "@/lib/certificate-service";
+import type { CertificateLoadStage } from "@/lib/certificate-client-loading";
+import {
+  fetchGalleryCertificate,
+  galleryItemDrawerTitle,
+  resolveCertificateWithStages,
+} from "@/lib/certificate-client-loading";
 import { cn } from "@/lib/cn";
 
 type ParticipantCertificatesTabProps = {
@@ -28,65 +29,42 @@ export function ParticipantCertificatesTab({
   const [error, setError] = useState<string | null>(null);
   const [loadingGallery, setLoadingGallery] = useState(true);
   const [loadingItemId, setLoadingItemId] = useState<string | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerTitle, setDrawerTitle] = useState("");
   const [selected, setSelected] = useState<ViewableCertificate | null>(null);
+  const [loadStage, setLoadStage] = useState<CertificateLoadStage | null>(null);
   const [openError, setOpenError] = useState<string | null>(null);
 
+  const closeDrawer = useCallback(() => {
+    setDrawerOpen(false);
+    setSelected(null);
+    setOpenError(null);
+    setLoadStage(null);
+    setLoadingItemId(null);
+    setDrawerTitle("");
+  }, []);
+
   const openCertificate = useCallback(async (item: CertificateGalleryItem) => {
+    setDrawerOpen(true);
+    setDrawerTitle(galleryItemDrawerTitle(item));
+    setSelected(null);
     setLoadingItemId(item.id);
+    setLoadStage("fetching");
     setOpenError(null);
 
     try {
-      if (item.kind === "star-day") {
-        const response = await fetch(`/api/certificates/star-day/${item.id}`);
-        const data = (await response.json()) as {
-          certificate?: StarDayCertificate;
-          error?: string;
-        };
-
-        if (!response.ok || !data.certificate) {
-          throw new Error(data.error ?? "Could not load certificate.");
-        }
-
-        setSelected(data.certificate);
-        return;
-      }
-
-      if (item.kind === "week-progress") {
-        const response = await fetch(`/api/certificates/week/${item.weekNo}`, {
-          method: "POST",
-        });
-        const data = (await response.json()) as {
-          certificate?: WeekProgressCertificate;
-          error?: string;
-        };
-
-        if (!response.ok || !data.certificate) {
-          throw new Error(data.error ?? "Could not load progress report.");
-        }
-
-        setSelected(data.certificate);
-        return;
-      }
-
-      const response = await fetch(`/api/certificates/star-week/${item.weekNo}`, {
-        method: "POST",
-      });
-      const data = (await response.json()) as {
-        certificate?: StarWeekCertificate;
-        error?: string;
-      };
-
-      if (!response.ok || !data.certificate) {
-        throw new Error(data.error ?? "Could not load certificate.");
-      }
-
-      setSelected(data.certificate);
+      const certificate = await resolveCertificateWithStages(
+        () => fetchGalleryCertificate(item),
+        setLoadStage,
+      );
+      setSelected(certificate);
     } catch (openErr) {
       setOpenError(
         openErr instanceof Error ? openErr.message : "Could not open certificate.",
       );
     } finally {
       setLoadingItemId(null);
+      setLoadStage(null);
     }
   }, []);
 
@@ -197,13 +175,15 @@ export function ParticipantCertificatesTab({
         ))}
       </ul>
 
-      {openError ? (
-        <p className="rounded-2xl bg-danger/10 px-4 py-3 text-sm text-danger">
-          {openError}
-        </p>
-      ) : null}
-
-      <CertificateViewDrawer certificate={selected} onClose={() => setSelected(null)} />
+      <CertificateViewDrawer
+        certificate={selected}
+        error={openError}
+        loadStage={loadStage}
+        loading={Boolean(loadStage)}
+        onClose={closeDrawer}
+        open={drawerOpen}
+        title={drawerTitle}
+      />
     </div>
   );
 }

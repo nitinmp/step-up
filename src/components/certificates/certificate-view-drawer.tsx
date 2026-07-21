@@ -4,8 +4,10 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 
 import { DivisionBadge } from "@/components/app/division-badge";
+import { CertificateLoadingAnimation } from "@/components/certificates/certificate-loading-animation";
 import { BottomDrawer } from "@/components/ui/bottom-drawer";
 import { photoProxyUrl } from "@/lib/blob-storage";
+import type { CertificateLoadStage } from "@/lib/certificate-client-loading";
 import type {
   StarDayCertificate,
   StarWeekCertificate,
@@ -21,13 +23,23 @@ export type ViewableCertificate =
   | StarWeekCertificate;
 
 type CertificateViewDrawerProps = {
-  certificate: ViewableCertificate | null;
+  open: boolean;
   onClose: () => void;
+  certificate: ViewableCertificate | null;
+  title?: string;
+  loading?: boolean;
+  loadStage?: CertificateLoadStage | null;
+  error?: string | null;
 };
 
 export function CertificateViewDrawer({
-  certificate,
+  open,
   onClose,
+  certificate,
+  title,
+  loading = false,
+  loadStage = null,
+  error = null,
 }: CertificateViewDrawerProps) {
   const [shareState, setShareState] = useState<
     "idle" | "sharing" | "copied"
@@ -38,6 +50,8 @@ export function CertificateViewDrawer({
   }, [certificate?.id]);
 
   const meta = certificate ? getCertificateMeta(certificate) : null;
+  const drawerTitle =
+    title ?? meta?.drawerTitle ?? (loading ? "Certificate" : "Certificate");
 
   async function handleShare() {
     if (!certificate || !meta || shareState === "sharing") {
@@ -79,8 +93,8 @@ export function CertificateViewDrawer({
       await navigator.clipboard.writeText(meta.shareText);
       setShareState("copied");
       window.setTimeout(() => setShareState("idle"), 2000);
-    } catch (error) {
-      if (error instanceof Error && error.name === "AbortError") {
+    } catch (shareError) {
+      if (shareError instanceof Error && shareError.name === "AbortError") {
         setShareState("idle");
         return;
       }
@@ -96,14 +110,23 @@ export function CertificateViewDrawer({
   }
 
   return (
-    <BottomDrawer
-      onClose={onClose}
-      open={Boolean(certificate)}
-      title={meta?.drawerTitle ?? "Certificate"}
-    >
-      {certificate && meta ? (
+    <BottomDrawer onClose={onClose} open={open} title={drawerTitle}>
+      {loading && loadStage ? (
+        <CertificateLoadingAnimation stage={loadStage} />
+      ) : error ? (
+        <div className="space-y-4 px-1 py-6">
+          <p className="text-sm text-danger">{error}</p>
+          <button
+            className="inline-flex w-full items-center justify-center rounded-full bg-brand px-4 py-3 text-sm font-semibold text-white transition hover:bg-brand-dark"
+            onClick={onClose}
+            type="button"
+          >
+            Close
+          </button>
+        </div>
+      ) : certificate && meta ? (
         <div className="space-y-4">
-          <div className="relative aspect-[1200/848] w-full overflow-hidden rounded-2xl border border-black/10 bg-white">
+          <div className="relative aspect-[1200/900] w-full overflow-hidden rounded-2xl border border-black/10 bg-white">
             <Image
               alt={meta.imageAlt}
               className="object-contain"
