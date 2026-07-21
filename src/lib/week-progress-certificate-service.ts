@@ -1,23 +1,19 @@
-import { and, eq } from "drizzle-orm";
-
-import { getDb } from "@/db";
-import { activities, users } from "@/db/schema";
 import { ActivityError, getChallengeWindow } from "@/lib/activities-service";
 import { deleteBlobUrl, uploadBlob } from "@/lib/blob-storage";
+import { mapWeekProgressRow } from "@/lib/certificate-service";
 import { CERTIFICATE_TYPES, weekTarget } from "@/lib/certificate-types";
-import { parseDivision } from "@/lib/divisions";
-import { compareDateStrings, formatDisplayDate, weekdayShortLabel } from "@/lib/dates";
+import { compareDateStrings } from "@/lib/dates";
 import {
   findUserCertificate,
   insertUserCertificate,
   listUserCertificatesByType,
   updateUserCertificate,
 } from "@/lib/user-certificate-store";
-import { mapWeekProgressRow } from "@/lib/certificate-service";
 import {
   renderWeekProgressCertificate,
   WEEK_PROGRESS_TEMPLATE_VERSION,
 } from "@/lib/week-progress-template";
+import { computeWeekProgressReportData } from "@/lib/week-progress-stats";
 
 export type WeekProgressCertificateRecord = {
   id: string;
@@ -29,20 +25,6 @@ export type WeekProgressCertificateRecord = {
   totalDistanceKm: number;
   generatedAt: string;
 };
-
-function formatTargetBand(minTarget: number, maxTarget: number): string {
-  if (minTarget === maxTarget) {
-    return `${(minTarget / 1000).toFixed(0)}k`;
-  }
-
-  return `${(minTarget / 1000).toFixed(0)}k–${(maxTarget / 1000).toFixed(0)}k`;
-}
-
-function formatWeekDateRange(startDate: string, endDate: string): string {
-  const start = formatDisplayDate(startDate).replace(/, \d{4}$/, "");
-  const end = formatDisplayDate(endDate).replace(/, \d{4}$/, "");
-  return `${start} – ${end}`;
-}
 
 function getCurrentWeekNo(
   days: Array<{ date: string; weekNo: number }>,
@@ -98,125 +80,6 @@ export function getEligibleWeekNumbers(
   });
 }
 
-async function computeWeekProgressStats(
-  userId: string,
-  weekNo: number,
-): Promise<{
-  recipientName: string;
-  division: ReturnType<typeof parseDivision>;
-  weekNo: number;
-  dateRange: string;
-  targetLabel: string;
-  daysMet: number;
-  totalDays: number;
-  totalSteps: number;
-  totalDistanceKm: number;
-  dailySteps: Array<{
-    label: string;
-    steps: number;
-    targetSteps: number;
-    metTarget: boolean;
-  }>;
-}> {
-  const db = getDb();
-  const { days, today } = await getChallengeWindow();
-  const weekDays = days.filter((day) => day.weekNo === weekNo);
-
-  if (weekDays.length === 0) {
-    throw new ActivityError("Challenge week not found.", 404);
-  }
-
-  const sortedWeekDays = [...weekDays].sort((a, b) =>
-    compareDateStrings(a.date, b.date),
-  );
-  const weekStart = sortedWeekDays[0]!.date;
-  const weekEnd = sortedWeekDays.at(-1)!.date;
-  const currentWeekNo = getCurrentWeekNo(days, today);
-  const status = getWeekStatus(weekNo, currentWeekNo, weekStart, today);
-
-  if (status === "upcoming") {
-    throw new ActivityError(
-      "Progress reports are available once the week has started.",
-      400,
-    );
-  }
-
-  const [user] = await db
-    .select({
-      name: users.name,
-      division: users.division,
-    })
-    .from(users)
-    .where(eq(users.id, userId))
-    .limit(1);
-
-  if (!user) {
-    throw new ActivityError("User not found.", 404);
-  }
-
-  const dayMap = new Map(sortedWeekDays.map((day) => [day.date, day]));
-  const approvedActivities = await db
-    .select({
-      activityDate: activities.activityDate,
-      steps: activities.steps,
-      distanceKm: activities.distanceKm,
-    })
-    .from(activities)
-    .where(
-      and(
-        eq(activities.userId, userId),
-        eq(activities.status, "approved"),
-      ),
-    );
-
-  let totalSteps = 0;
-  let totalDistanceKm = 0;
-  const stepsByDate = new Map<string, number>();
-
-  for (const activity of approvedActivities) {
-    const day = dayMap.get(activity.activityDate);
-    if (!day) {
-      continue;
-    }
-
-    totalSteps += activity.steps;
-    totalDistanceKm += Number(activity.distanceKm);
-    stepsByDate.set(
-      activity.activityDate,
-      (stepsByDate.get(activity.activityDate) ?? 0) + activity.steps,
-    );
-  }
-
-  const dailySteps = sortedWeekDays.map((day) => {
-    const steps = stepsByDate.get(day.date) ?? 0;
-    return {
-      label: weekdayShortLabel(day.date),
-      steps,
-      targetSteps: day.targetSteps,
-      metTarget: steps >= day.targetSteps,
-    };
-  });
-
-  const daysMet = dailySteps.filter((day) => day.metTarget).length;
-
-  const targets = sortedWeekDays.map((day) => day.targetSteps);
-  const minTarget = Math.min(...targets);
-  const maxTarget = Math.max(...targets);
-
-  return {
-    recipientName: user.name,
-    division: parseDivision(user.division),
-    weekNo,
-    dateRange: formatWeekDateRange(weekStart, weekEnd),
-    targetLabel: formatTargetBand(minTarget, maxTarget),
-    daysMet,
-    totalDays: sortedWeekDays.length,
-    totalSteps,
-    totalDistanceKm: Math.round(totalDistanceKm * 100) / 100,
-    dailySteps,
-  };
-}
-
 function toRecord(
   row: ReturnType<typeof mapWeekProgressRow>,
 ): WeekProgressCertificateRecord {
@@ -247,7 +110,7 @@ export async function listWeekProgressCertificates(
 
 function weekProgressNeedsRegeneration(
   existing: Awaited<ReturnType<typeof findUserCertificate>>,
-  stats: Awaited<ReturnType<typeof computeWeekProgressStats>>,
+  stats: Awaited<ReturnType<typeof computeWeekProgressReportData>>,
 ): boolean {
   if (!existing) {
     return true;
@@ -262,7 +125,8 @@ function weekProgressNeedsRegeneration(
     metadata.daysMet !== stats.daysMet ||
     metadata.totalDays !== stats.totalDays ||
     metadata.totalSteps !== stats.totalSteps ||
-    metadata.totalDistanceKm !== stats.totalDistanceKm
+    metadata.totalDistanceKm !== stats.totalDistanceKm ||
+    metadata.weekPoints !== stats.weekPoints
   );
 }
 
@@ -270,7 +134,7 @@ async function saveWeekProgressCertificate(
   userId: string,
   weekNo: number,
   target: string,
-  stats: Awaited<ReturnType<typeof computeWeekProgressStats>>,
+  stats: Awaited<ReturnType<typeof computeWeekProgressReportData>>,
   existing: Awaited<ReturnType<typeof findUserCertificate>>,
 ): Promise<NonNullable<Awaited<ReturnType<typeof findUserCertificate>>>> {
   const png = await renderWeekProgressCertificate(stats);
@@ -284,6 +148,7 @@ async function saveWeekProgressCertificate(
     totalDays: stats.totalDays,
     totalSteps: stats.totalSteps,
     totalDistanceKm: stats.totalDistanceKm,
+    weekPoints: stats.weekPoints,
     templateVersion: WEEK_PROGRESS_TEMPLATE_VERSION,
   };
 
@@ -334,7 +199,7 @@ export async function ensureWeekProgressCertificate(
     target,
   );
 
-  const stats = await computeWeekProgressStats(userId, weekNo);
+  const stats = await computeWeekProgressReportData(userId, weekNo);
 
   if (existing && !weekProgressNeedsRegeneration(existing, stats)) {
     return toRecord(mapWeekProgressRow(existing));

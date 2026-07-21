@@ -126,7 +126,7 @@ export function CertificateViewDrawer({
         </div>
       ) : certificate && meta ? (
         <div className="space-y-4">
-          <div className="relative aspect-[1200/900] w-full overflow-hidden rounded-2xl border border-black/10 bg-white">
+          <div className="relative aspect-square w-full overflow-hidden rounded-2xl border border-black/10 bg-white">
             <Image
               alt={meta.imageAlt}
               className="object-contain"

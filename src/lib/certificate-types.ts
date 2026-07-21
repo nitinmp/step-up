@@ -12,6 +12,7 @@ export type CertificateMetadata = {
   totalDays?: number;
   totalSteps?: number;
   totalDistanceKm?: number;
+  weekPoints?: number;
   templateVersion?: number;
 };
 
